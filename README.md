@@ -42,6 +42,17 @@ Right now the project uses only POST and GET, to add a new method, you need to c
 
 By testing, the fastest response is 500ms and the avg is 750ms
 
+### Hardware Configuration
+
+| ESP8266                     | RPi Pico |
+| --------------------------- | -------- |
+| GND                         | GND      |
+| IO15 (If the module has it) | GND      |
+| RX                          | TX       |
+| TX                          | RX       |
+| 3.3v                        | 3.3v     |
+| CH_PD / EN / CHIP_EN        | 3.3v     |
+
 ### Coming Soon
 
 - MQTT implementation for IDF-AT Firmware
