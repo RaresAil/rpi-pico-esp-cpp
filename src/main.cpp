@@ -43,8 +43,10 @@ int main() {
   printf("~~~~~Made by: 'github.com/RaresAil'~~~~~\n");
   printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n\n");
 
-  initialize_uart();
-  if (!initialize_esp()) {
+  if (
+    !initialize_uart() || 
+    !initialize_esp()
+  ) {
     reboot_board();
     return -1;
   }

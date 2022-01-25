@@ -7,29 +7,39 @@
 #include <string>
 
 std::string getIp() {
-  if (!sendATCommandOK("CIFSR", 2000)) {
+  try {
+    if (!sendATCommandOK("CIFSR", 2000)) {
+      return "";
+    }
+
+    const char* buff = strstr(responseBuffer, "STAIP");
+    if (buff == NULL) {
+      return "";
+    }
+
+    return getParam(1, '"', '\0', buff);
+  } catch (...) {
+    printf("[Server]:[ERROR]: while getting IP\n");
     return "";
   }
-
-  const char* buff = strstr(responseBuffer, "STAIP");
-  if (buff == NULL) {
-    return "";
-  }
-
-  return getParam(1, '"', '\0', buff);
 }
 
-std::string getVersion() {
-  if (!sendATCommandOK("GMR", 1000)) {
+std::string getSDKVersion() {
+  try {
+    if (!sendATCommandOK("GMR", 1000)) {
+      return "";
+    }
+
+    const char* buff = strstr(responseBuffer, "SDK");
+    if (buff == NULL) {
+      return "";
+    }
+
+    return getParam(1, ':', '\n', buff);
+  } catch (...) {
+    printf("[Server]:[ERROR]: while getting sdk version\n");
     return "";
   }
-
-  const char* buff = strstr(responseBuffer, "SDK");
-  if (buff == NULL) {
-    return "";
-  }
-
-  return getParam(1, ':', '\n', buff);
 }
 
 /*
@@ -41,19 +51,24 @@ std::string getVersion() {
  * 4: ESP station is in Wi-Fi disconnected state.
  */
 int getWifiState() {
-  if (!sendATCommandOK("CWSTATE?", 1000)) {
+  try {
+    if (!sendATCommandOK("CWSTATE?", 1000)) {
+      return -1;
+    }
+
+    const char* buff = strstr(responseBuffer, "+CWSTATE:");
+    if (buff == NULL) {
+      return -1;
+    }
+
+    const std::string s_state = getParam(1, ':', ',', buff);
+    if (s_state.empty()) {
+      return -1;
+    }
+
+    return stoi(s_state);
+  } catch (...) {
+    printf("[Server]:[ERROR]: while getting wifi state\n");
     return -1;
   }
-
-  const char* buff = strstr(responseBuffer, "+CWSTATE:");
-  if (buff == NULL) {
-    return -1;
-  }
-
-  const std::string s_state = getParam(1, ':', ',', buff);
-  if (s_state.empty()) {
-    return -1;
-  }
-
-  return stoi(s_state);
 }

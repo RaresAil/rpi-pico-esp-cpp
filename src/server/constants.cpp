@@ -11,6 +11,7 @@ enum class HTTP_STATUS {
   INTERNAL_SERVER_ERROR,
   METHOD_NOT_ALLOWED,
   BAD_REQUEST,
+  NOT_FOUND,
   OK
 };
 
@@ -35,6 +36,8 @@ std::string HTTP_STATUSES(const HTTP_STATUS& status) {
       return "405 Method Not Allowed";
     case HTTP_STATUS::BAD_REQUEST:
       return "400 Bad Request";
+    case HTTP_STATUS::NOT_FOUND:
+      return "404 Not Found";
     case HTTP_STATUS::OK:
       return "200 OK";
     default:

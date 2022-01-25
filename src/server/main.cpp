@@ -14,8 +14,13 @@
 #include "serve.cpp"
 
 bool led_blink_timer(struct repeating_timer *t) {
-  gpio_put(STATUS_LED_PIN, !gpio_get(STATUS_LED_PIN));
-  return true;
+  try {
+    gpio_put(STATUS_LED_PIN, !gpio_get(STATUS_LED_PIN));
+    return true;
+  } catch (...) {
+    printf("[Server]:[ERROR]: while blinking status led\n");
+    return false;
+  }
 }
 
 // Executed on core 0
