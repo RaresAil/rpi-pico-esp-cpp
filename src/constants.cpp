@@ -13,3 +13,6 @@
 #define SENDBUFFERLEN     1000
 #define RESPONSEBUFFERLEN 1500
 #define MICROS_MS         1000
+
+#define HOSTNAME          "rpi-pico-esp-template"
+#define HMAC_SECRET        "secret"

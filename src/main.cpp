@@ -7,11 +7,17 @@
 #include <stdio.h>
 #include <string>
 
+#include "cpp-base64/base64.cpp"
+#include "stbrumme/sha256.cpp"
+#include "stbrumme/hmac.h"
+
 #ifndef INCLUDE_NLOHMANN_JSON_HPP_
 #include "nlohmann/json.hpp"
 #endif
 
 using json = nlohmann::json;
+
+#include "utils/hmac.cpp"
 
 #include "esp/main.cpp"
 #include "server/main.cpp"
