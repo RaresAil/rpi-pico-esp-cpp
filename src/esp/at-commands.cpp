@@ -30,7 +30,13 @@ int getATdata(int buffPtr) {
   }
 }
 
-bool sendATCommand(const char* command, int64_t allowTimeMs, const char* successMsg, const bool& surpressOutput = false) {
+bool sendATCommand(
+  const char* command, 
+  int64_t allowTimeMs, 
+  const char* successMsg, 
+  const bool& surpressOutput = false,
+  const bool& isIPD = false
+) {
   try {
     absolute_time_t start = get_absolute_time();
     allowTimeMs *= MICROS_MS;
@@ -69,6 +75,13 @@ bool sendATCommand(const char* command, int64_t allowTimeMs, const char* success
       }
 
       if ((strlen(successMsg) > 0) && (strstr(responseBuffer, successMsg) != NULL)) {
+        return true;
+      }
+
+      if (
+        isIPD &&
+        strstr(responseBuffer, "\r\n\r\n") != NULL
+      ) {
         return true;
       }
 
@@ -236,15 +249,17 @@ void sendResponse(const char* id, const char* statusCode, const char* responseDa
       "Access-Control-Allow-Origin: *\r\nHost: RPi-Pico",
       "Content-type: application/json\r\n\r\n", 
       responseData, 
-      "\r\n"
+      "\r\n\0"
     );
-    snprintf(sendBuffer, SENDBUFFERLEN, "CIPSEND=%s,%d", id, strlen(data));
+
+    snprintf(sendBuffer, SENDBUFFERLEN, "CIPSENDEX=%s,%d", id, strlen(data));
     sendATCommand(sendBuffer, 250, ">", true);
+
     uart_puts(UART_ID, data);
-    clearATBuffer(250);
+    sendATCommandOK("", 250, true);
 
     snprintf(sendBuffer, SENDBUFFERLEN, "CIPCLOSE=%s", id);
-    sendATCommandOK(sendBuffer, 500, true);
+    sendATCommandOK(sendBuffer, 250, true);
   } catch (...) {
     printf("[HTTP-Server]: Error sending response\n");
   }

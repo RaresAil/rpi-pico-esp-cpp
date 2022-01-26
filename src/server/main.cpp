@@ -35,6 +35,14 @@ bool start_server() {
     }
 
     printf("[Server]: ESP8266 in Station Mode\n");
+
+    snprintf(sendBuffer, SENDBUFFERLEN, "CWHOSTNAME=\"%s\"", HOSTNAME);
+    if (!sendATCommandOK(sendBuffer, 2000)) {
+      return false;
+    }
+    
+    printf("[Server]: Hostname set to %s\n", HOSTNAME);
+
     const int wifiState = getWifiState();
 
     if (wifiState <= 0) {

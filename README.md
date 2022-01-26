@@ -44,7 +44,16 @@ Right now the project uses only POST and GET, to add a new method, you need to c
 - server/m-core.cpp
   - `core0_sio_irq`
 
-By testing, the fastest response is 500ms and the avg is 750ms
+### Performance
+
+~~By testing, the fastest response is 500ms and the avg is 750ms~~
+
+After some more optimizations, the avg response times are:
+
+- For errors: 150 - 200 ms
+- GET Requests: 300 - 600 ms
+- POST Requests: 500 - 900 ms
+- If the ESP does not respond with the http request the timeout util connection close is 5 seconds
 
 ### Hardware Configuration
 
@@ -57,7 +66,7 @@ By testing, the fastest response is 500ms and the avg is 750ms
 | 3.3v                        | 3.3v     |
 | CH_PD / EN / CHIP_EN        | 3.3v     |
 
-### Coming Soon
+### Coming Soon (if requested)
 
 - MQTT implementation for IDF-AT Firmware
 

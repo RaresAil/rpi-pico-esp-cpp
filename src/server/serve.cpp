@@ -14,11 +14,18 @@ void serve_clients() {
     if (uart_is_readable(UART_ID)) {
       try {
         char responseBuff[RESPONSEBUFFERLEN * 2] = "";
+        sendATCommand("", 250, "{", true, true);
+        bool hasBody = false;
 
-        // For requests with a JSON body, we split the response into two parts:
-        if (sendATCommand("", 250, "{", true)) {
+        const char* c_temp_ipd = strstr(responseBuffer, "IPD");
+        if (c_temp_ipd != NULL) {
+          const std::string httpMethod = getParam(1, ':', ' ', c_temp_ipd);
+          hasBody = is_valid_method_with_body(httpMethod);
+        }
+
+        if (hasBody) {
           strcpy(responseBuff, responseBuffer);
-          sendATCommand("", 250, "", true);
+          sendATCommand("", 250, "}\r\n\r\n", true);
         }
 
         snprintf(responseBuff, RESPONSEBUFFERLEN * 2, "%s%s", responseBuff, responseBuffer);

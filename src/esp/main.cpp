@@ -8,12 +8,18 @@ int UART_IRQ = UART_ID == uart0 ? UART0_IRQ : UART1_IRQ;
 bool initialize_esp() {
   try {
     clearATBuffer(1000);
-    std::string sdkVersion = getSDKVersion();
 
-    if (sdkVersion != "" && sendATCommandOK("RST", 1000)) {
+    if (sendATCommandOK("RST", 1000)) {
+      sendATCommand("", 1000, "ready", true);
+
+      std::string sdkVersion = getSDKVersion();
+      if (sdkVersion.empty()) {
+        printf("[ESP8266]: Failed to get version\n");
+        return false;
+      }
+
       printf("[ESP8266]: SDK Version: %s\n", sdkVersion.c_str());
 
-      sendATCommand("", 1000, "ready", true);
       uart_puts(UART_ID, "ATE0\r\n");
       if (!sendATCommandOK("", 1000)) {
         printf("[ESP8266]: Failed to set ATE0\n");
