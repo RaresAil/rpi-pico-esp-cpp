@@ -30,8 +30,11 @@ pico_enable_stdio_uart(${PROJECT_NAME} 0)
 # create map/bin/hex/uf2 files.
 pico_add_extra_outputs(${PROJECT_NAME})
 
+pico_set_program_url(${PROJECT_NAME} "https://github.com/RaresAil/rpi-pico-esp-cpp")
+
 # Pull in our pico_stdlib which pulls in commonly used features (gpio, timer-delay etc)
 target_link_libraries(${PROJECT_NAME}
   pico_stdlib
   pico_multicore
+  hardware_rtc
 )

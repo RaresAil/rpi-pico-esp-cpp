@@ -42,14 +42,10 @@ void handle_request(const std::string& request) {
   const std::string linkId = getParam(1, ',', '\0', request);
   const std::string dataLen = getParam(2, ',', ':', request);
 
-  std::string httpLine = getParam(2, ',', '\n', request);
+  std::string httpLine = getParam(2, ',', '\r', request);
   httpLine.erase(0, dataLen.length() + 1);
 
   try {
-    while (httpLine.find("\r") != std::string::npos) {
-      httpLine.erase(httpLine.find("\r"), 1);
-    }
-
     const std::string method = getParam(0, ' ', '\0', httpLine);
     const std::string route = getParam(1, ' ', '\0', httpLine);
 

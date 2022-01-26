@@ -198,6 +198,32 @@ std::string getParam(
   }
 }
 
+// c_getParam does the same thing as getParam but is getting the param from first occurrence
+std::string c_getParam(
+  const char* start, 
+  const char end = '\0',
+  const char* from = responseBuffer
+) {
+  try {
+    const char* c_line = strstr(from, start);
+    if (c_line == NULL) {
+      return "";
+    }
+
+    std::string line(c_line);
+    line.erase(0, 1);
+
+    if (end != '\0') {
+      std::getline(std::istringstream(line), line, end);
+    }
+
+    return line;
+  } catch (...) {
+    printf("[Server]:[ERROR]: while getting c_param\n");
+    return "";
+  }
+}
+
 void sendResponse(const char* id, const char* statusCode, const char* responseData) {
   try {
     char sendBuffer[SENDBUFFERLEN];

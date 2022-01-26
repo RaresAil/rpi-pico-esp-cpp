@@ -1,6 +1,7 @@
 #include "hardware/watchdog.h"
 #include "pico/multicore.h"
 #include "hardware/uart.h"
+#include "hardware/rtc.h"
 #include "hardware/irq.h"
 #include "constants.cpp"
 #include "pico/stdlib.h"
@@ -36,6 +37,8 @@ void reboot_board() {
 
 int main() {
   stdio_usb_init();
+  rtc_init();
+
   stdio_filter_driver(&stdio_usb);
 
   gpio_init(STATUS_LED_PIN);
