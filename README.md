@@ -19,6 +19,8 @@ The `esp8266-wroom02-at` uses UART1 and `esp8266-wroom02-n-at` uses UART0 (Same 
 External libraries:
 
 - https://github.com/nlohmann/json (For JSON parsing)
+- https://github.com/stbrumme/hash-library (For Hashing)
+- https://github.com/ReneNyffenegger/cpp-base64 (For Base64 encoding)
 
 Features:
 
