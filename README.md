@@ -24,6 +24,10 @@ Features:
 
 - SmartConfig with ESP Touch and AirKiss
 - Auto reboot if the esp didn't started the http server
+- RTC (Time in string format and in ms)
+- HMAC SHA256 authorization
+- Error handler
+- GET `/status` endpoint
 
 For ESP Touch, i am using the ExpressIf's mobile application
 
