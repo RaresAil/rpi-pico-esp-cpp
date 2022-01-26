@@ -18,9 +18,9 @@
 
 using json = nlohmann::json;
 
-#include "utils/hmac.cpp"
-
+#include "esp/utils.cpp"
 #include "esp/main.cpp"
+#include "utils/hmac.cpp"
 #include "server/main.cpp"
 
 #ifdef IS_DEBUG_MODE

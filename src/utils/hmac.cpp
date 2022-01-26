@@ -6,11 +6,12 @@
 #include "time.h"
 #include <string>
 
+const char VALID_ALG[] = "HS256";
 std::string generate_signature(const uint32_t& ms_expire) {
   json payload = json::object();
-  payload["exp"] = to_ms_since_boot(get_absolute_time()) + ms_expire;
+  payload["exp"] = get_datetime_ms() + ms_expire;
   payload["sub"] = HOSTNAME;
-  payload["alg"] = "HS256";
+  payload["alg"] = VALID_ALG;
 
   std::string b64_payload = base64_encode(payload.dump(), true);
   const int payload_trim_pos = b64_payload.find_first_of('.');
@@ -29,4 +30,41 @@ std::string generate_signature(const uint32_t& ms_expire) {
   }
 
   return b64_payload + "." + signature;
+}
+
+bool verify_signature(const std::string& data) {
+  try {
+    const std::string b64_payload = getParam(0, '.', '\0', data);
+    const std::string b64_signature = getParam(1, '.', '\0', data);
+
+    if (b64_payload.empty() || b64_signature.empty()) {
+      return false;
+    }
+
+    const std::string signature = base64_decode(b64_signature);
+    const std::string expected_signature = hmac<SHA256>(b64_payload, HMAC_SECRET);
+    if (expected_signature != signature) {
+      return false;
+    }
+
+    const json payload = json::parse(base64_decode(b64_payload));
+    const u_int64_t exp = payload["exp"].get<u_int64_t>();
+    if (exp < get_datetime_ms()) {
+      return false;
+    }
+
+    const std::string alg = payload["alg"].get<std::string>();
+    if (alg != VALID_ALG) {
+      return false;
+    }
+
+    const std::string sub = payload["sub"].get<std::string>();
+    if (sub != HOSTNAME) {
+      return false;
+    }
+
+    return true;
+  } catch (...) {
+    return false;
+  }
 }
