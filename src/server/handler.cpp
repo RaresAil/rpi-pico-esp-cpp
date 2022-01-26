@@ -49,48 +49,63 @@ void handle_request(const std::string& request) {
     const std::string method = getParam(0, ' ', '\0', httpLine);
     const std::string route = getParam(1, ' ', '\0', httpLine);
 
+    printf(
+      "[Server]: Incoming '%s' request on '%s' from client '%s'\n", 
+      method.c_str(), 
+      route.c_str(),
+      linkId.c_str()
+    );
+
+    bool isAuthorized = false;
+    const char* authorization = strstr(request.c_str(), "Authorization");
+    if (authorization != NULL) {
+      const std::string auth = getParam(0, '\r', '\0', authorization);
+      const std::string authType = getParam(1, ' ', '\0', auth);
+      const std::string token = getParam(2, ' ', '\0', auth);
+
+      if (authType == "Bearer" && !token.empty()) {
+        isAuthorized = verify_signature(token);
+      }      
+    }
+
+    if (!isAuthorized) {
+      close_connection(linkId, HTTP_STATUS::UNAUTHORIZED);
+      return;
+    }
+
     bool isValidContentType = false;
     const char* contentType = strstr(request.c_str(), "Content-Type");
     if (contentType != NULL) {
-      const std::string sContentType = getParam(0, '\n', '\0', contentType);
+      const std::string sContentType = getParam(0, '\r', '\0', contentType);
       isValidContentType = sContentType.find("application/json") != std::string::npos;
     }
 
+    if (!is_valid_method_with_no_body(method) && !is_valid_method_with_body(method)) {
+      close_connection(linkId, HTTP_STATUS::METHOD_NOT_ALLOWED);
+      return;
+    }
+
+    if (is_valid_method_with_body(method) && !isValidContentType) {
+      close_connection(linkId, HTTP_STATUS::UNSUPPORTED_MEDIA_TYPE);
+      return;
+    }
+
+    const char* _requestBody = strstr(request.c_str(), "{");
     if (
-      is_valid_method_with_no_body(method) || (
-        is_valid_method_with_body(method) &&
-        isValidContentType
-      )
+      is_valid_method_with_body(method) &&
+      _requestBody == NULL
     ) {
-      printf(
-        "[Server]: Incoming '%s' request on '%s' from client '%s'\n", 
-        method.c_str(), 
-        route.c_str(),
-        linkId.c_str()
-      );
+      close_connection(linkId, HTTP_STATUS::BAD_REQUEST);
+      return;
+    }
 
-      const char* _requestBody = strstr(request.c_str(), "{");
-      if (
-        is_valid_method_with_body(method) &&
-        _requestBody == NULL
-      ) {
-        close_connection(linkId, HTTP_STATUS::BAD_REQUEST);
-      } else {
-        if (multicore_fifo_wready()) {
-          multicore_fifo_push_blocking((uintptr_t)linkId.c_str());
-          multicore_fifo_push_blocking((uintptr_t)method.c_str());
-          multicore_fifo_push_blocking((uintptr_t)route.c_str());
+    if (multicore_fifo_wready()) {
+      multicore_fifo_push_blocking((uintptr_t)linkId.c_str());
+      multicore_fifo_push_blocking((uintptr_t)method.c_str());
+      multicore_fifo_push_blocking((uintptr_t)route.c_str());
 
-          if (is_valid_method_with_body(method)) {
-            multicore_fifo_push_blocking((uintptr_t)_requestBody);
-          }
-        }
-      }
-    } else {
       if (is_valid_method_with_body(method)) {
-        close_connection(linkId, HTTP_STATUS::UNSUPPORTED_MEDIA_TYPE);
-      } else {
-        close_connection(linkId, HTTP_STATUS::METHOD_NOT_ALLOWED);
+        multicore_fifo_push_blocking((uintptr_t)_requestBody);
       }
     }
   } catch (...) {

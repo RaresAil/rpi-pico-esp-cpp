@@ -7,7 +7,7 @@
 #include <string>
 
 const char VALID_ALG[] = "HS256";
-std::string generate_signature(const uint32_t& ms_expire) {
+std::string generate_signature(const u_int64_t& ms_expire) {
   json payload = json::object();
   payload["exp"] = get_datetime_ms() + ms_expire;
   payload["sub"] = HOSTNAME;
@@ -38,33 +38,39 @@ bool verify_signature(const std::string& data) {
     const std::string b64_signature = getParam(1, '.', '\0', data);
 
     if (b64_payload.empty() || b64_signature.empty()) {
+      printf("[Server]-[HMAC]: Empty signature\n");
       return false;
     }
 
     const std::string signature = base64_decode(b64_signature);
     const std::string expected_signature = hmac<SHA256>(b64_payload, HMAC_SECRET);
     if (expected_signature != signature) {
+      printf("[Server]-[HMAC]: Invalid signature\n");
       return false;
     }
 
     const json payload = json::parse(base64_decode(b64_payload));
     const u_int64_t exp = payload["exp"].get<u_int64_t>();
     if (exp < get_datetime_ms()) {
+      printf("[Server]-[HMAC]: Signature expired\n");
       return false;
     }
 
     const std::string alg = payload["alg"].get<std::string>();
     if (alg != VALID_ALG) {
+      printf("[Server]-[HMAC]: Invalid algorithm\n");
       return false;
     }
 
     const std::string sub = payload["sub"].get<std::string>();
     if (sub != HOSTNAME) {
+      printf("[Server]-[HMAC]: Invalid subject\n");
       return false;
     }
 
     return true;
   } catch (...) {
+    printf("[Server]:[ERROR]: Signature exception\n");
     return false;
   }
 }

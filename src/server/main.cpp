@@ -129,6 +129,16 @@ bool start_server() {
       printf("[Server]: Client timeout set to 5s\n");
     }
 
+    const std::string one_month_signature = generate_signature(31 * 24 * 60 * 60 * (u_int64_t)1000);
+    const std::string b64_payload = getParam(0, '.', '\0', one_month_signature);
+    const std::string b64_signature = getParam(1, '.', '\0', one_month_signature);
+
+#ifdef IS_DEBUG_MODE
+    printf("\n~~~~~~~~~~~~~~~~~~~~~\n");
+    printf("Debug Signature: \n%s.\n%s\n", b64_payload.c_str(), b64_signature.c_str());
+    printf("~~~~~~~~~~~~~~~~~~~~~\n\n");
+#endif
+
     gpio_put(STATUS_LED_PIN, 1);
 
     multicore_launch_core1(serve_clients);
