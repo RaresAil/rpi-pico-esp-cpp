@@ -11,6 +11,10 @@ project(project_name C CXX ASM)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 
+if(CMAKE_BUILD_TYPE MATCHES "Debug")
+  add_compile_definitions(IS_DEBUG_MODE="1")
+endif()
+
 # Creates a pico-sdk subdirectory in our project for the libraries
 pico_sdk_init()
 

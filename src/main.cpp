@@ -23,6 +23,10 @@ using json = nlohmann::json;
 #include "esp/main.cpp"
 #include "server/main.cpp"
 
+#ifdef IS_DEBUG_MODE
+#include "pico/bootrom.h"
+#endif
+
 void reboot_board() {
   printf("[MAIN]: Rebooting board\n");
   sleep_ms(1000);
@@ -41,13 +45,27 @@ int main() {
 
   stdio_filter_driver(&stdio_usb);
 
+#ifdef IS_DEBUG_MODE
+  const uint BOOTSEL_BUTTON = 15;
+  gpio_init(BOOTSEL_BUTTON);
+  gpio_set_dir(BOOTSEL_BUTTON, GPIO_IN);
+  if (gpio_get(BOOTSEL_BUTTON)) {
+    printf("[MAIN]: Bootsel button pressed\n");
+    reset_usb_boot(0, 0);
+  }
+#endif
+
   gpio_init(STATUS_LED_PIN);
   gpio_set_dir(STATUS_LED_PIN, GPIO_OUT);
   gpio_put(STATUS_LED_PIN, 1);
 
+#ifdef IS_DEBUG_MODE
   sleep_ms(4000);
-  gpio_put(STATUS_LED_PIN, 0);
+#else
+  sleep_ms(500);
+#endif
 
+  gpio_put(STATUS_LED_PIN, 0);
   printf("\n\n\n~~~~~~~~~~~~~~~RPico-BOOT~~~~~~~~~~~~~~~\n");
   printf("~~~~~Made by: 'github.com/RaresAil'~~~~~\n");
   printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n\n");
