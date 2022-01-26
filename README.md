@@ -66,3 +66,47 @@ By testing, the fastest response is 500ms and the avg is 750ms
 Search for `project_name` in `CMakeLists.txt`, it should be something like `project(project_name C CXX ASM)`.
 
 Replace only `project_name`, e.g. `project(my_project C CXX ASM)`
+
+<details>
+<summary>Example console output</summary>
+
+```
+~~~~~~~~~~~~~~~RPico-BOOT~~~~~~~~~~~~~~~
+~~~~~Made by: 'github.com/RaresAil'~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+[AT-Command]-[GMR]: Sending Command
+[AT-Command]-[RST]: Sending Command
+[ESP8266]: SDK Version: v3.4-43-ge9516e4c
+[AT-Command]-[CWMODE=1]: Sending Command
+[Server]: ESP8266 in Station Mode
+[AT-Command]-[CWSTATE?]: Sending Command
+[Server]: Connecting to last WiFi configuration
+[AT-Command]-[CWJAP]: Sending Command
+[AT-Command]-[CIFSR]: Sending Command
+[Server]: Connected to WiFi
+[Server]: IP Address: 'x.x.x.x'
+[Server]: Setting the UTC time to RTC
+[AT-Command]-[CIPSNTPCFG=1,0,"pool.ntp.org"]: Sending Command
+[AT-Command]-[CIPSNTPTIME?]: Sending Command
+[AT-Command]-[CIPSNTPTIME?]: Sending Command
+[AT-Command]-[CIPSNTPTIME?]: Sending Command
+[Server]-[INFO]: UTC time: 'Wed Jan 26 14:07:00 2022'
+[Server]: Setting RTC time to 2022-1-26 14:7:0
+[AT-Command]-[CIPMUX=1]: Sending Command
+[AT-Command]-[CIPSERVER=1,54412]: Sending Command
+[Server]: Server running on port '54412'
+[AT-Command]-[CIPSTO=5]: Sending Command
+[Server]: Client timeout set to 5s
+
+~~~~~~~~~~~~~~~~~~~~~
+Debug Signature:
+eyJhbGciOiJIUzI1NiIsImV4cCI6MTY0NTg4NDQyMTAwMCwic3ViIjoicnBpLXBpY28tZXNwLXRlbXBsYXRlIn0.
+YWRhZjFmYjY1ZjE1OTNkN2U0MmU4OTIwZmRhY2EyMWEyMzVhNGJkZTg1OTJlZDdhZGJlMDA4OTU5OTFjZGEyNg
+~~~~~~~~~~~~~~~~~~~~~
+
+[Server]: Serving clients
+```
+
+</details>
