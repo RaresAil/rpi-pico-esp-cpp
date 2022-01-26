@@ -14,8 +14,13 @@
 #include "serve.cpp"
 
 bool led_blink_timer(struct repeating_timer *t) {
-  gpio_put(STATUS_LED_PIN, !gpio_get(STATUS_LED_PIN));
-  return true;
+  try {
+    gpio_put(STATUS_LED_PIN, !gpio_get(STATUS_LED_PIN));
+    return true;
+  } catch (...) {
+    printf("[Server]:[ERROR]: while blinking status led\n");
+    return false;
+  }
 }
 
 // Executed on core 0
@@ -96,6 +101,17 @@ bool start_server() {
     printf("[Server]: Connected to WiFi\n");
     printf("[Server]: IP Address: '%s'\n", ipAddress.c_str());
 
+    printf("[Server]: Setting the UTC time to RTC\n");
+    if (!setupUTCTime()) {
+      printf("[Server]: Failed to set the UTC time to RTC\n");
+      return false;
+    }
+
+    if (1324512000000 > get_datetime_ms()) {
+      printf("[Server]-[RTC]: Check Failed\n");
+      return false;
+    }
+
     if (!sendATCommandOK("CIPMUX=1", 2000)) {
       return false;
     }
@@ -112,6 +128,16 @@ bool start_server() {
     } else {
       printf("[Server]: Client timeout set to 5s\n");
     }
+
+    const std::string one_month_signature = generate_signature(31 * 24 * 60 * 60 * (u_int64_t)1000);
+    const std::string b64_payload = getParam(0, '.', '\0', one_month_signature);
+    const std::string b64_signature = getParam(1, '.', '\0', one_month_signature);
+
+#ifdef IS_DEBUG_MODE
+    printf("\n~~~~~~~~~~~~~~~~~~~~~\n");
+    printf("Debug Signature: \n%s.\n%s\n", b64_payload.c_str(), b64_signature.c_str());
+    printf("~~~~~~~~~~~~~~~~~~~~~\n\n");
+#endif
 
     gpio_put(STATUS_LED_PIN, 1);
 

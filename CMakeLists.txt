@@ -11,6 +11,10 @@ project(project_name C CXX ASM)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 
+if(CMAKE_BUILD_TYPE MATCHES "Debug")
+  add_compile_definitions(IS_DEBUG_MODE="1")
+endif()
+
 # Creates a pico-sdk subdirectory in our project for the libraries
 pico_sdk_init()
 
@@ -30,8 +34,11 @@ pico_enable_stdio_uart(${PROJECT_NAME} 0)
 # create map/bin/hex/uf2 files.
 pico_add_extra_outputs(${PROJECT_NAME})
 
+pico_set_program_url(${PROJECT_NAME} "https://github.com/RaresAil/rpi-pico-esp-cpp")
+
 # Pull in our pico_stdlib which pulls in commonly used features (gpio, timer-delay etc)
 target_link_libraries(${PROJECT_NAME}
   pico_stdlib
   pico_multicore
+  hardware_rtc
 )

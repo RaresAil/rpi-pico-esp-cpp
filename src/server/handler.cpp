@@ -10,27 +10,31 @@ void close_connection(
   const std::string& linkId, 
   const HTTP_STATUS& status
 ) {
-  std::string message = HTTP_STATUSES(status);
-  std::string s_status;
-  std::istringstream iss_input(message);
-  std::getline(iss_input, s_status, ' ');
-  message.erase(0, s_status.length() + 1);
+  try {
+    std::string message = HTTP_STATUSES(status);
+    std::string s_status;
+    std::istringstream iss_input(message);
+    std::getline(iss_input, s_status, ' ');
+    message.erase(0, s_status.length() + 1);
 
-  printf(
-    "[Server]: Closing connection for client '%s' with status '%s' and message '%s'\n", 
-    linkId.c_str(), 
-    s_status.c_str(), 
-    message.c_str()
-  );
+    printf(
+      "[Server]: Closing connection for client '%s' with status '%s' and message '%s'\n", 
+      linkId.c_str(), 
+      s_status.c_str(), 
+      message.c_str()
+    );
 
-  json jsn = json::object();
-  jsn["message"] = message;
+    json jsn = json::object();
+    jsn["message"] = message;
 
-  sendResponse(
-    linkId.c_str(), 
-    HTTP_STATUSES(status).c_str(),
-    jsn.dump().c_str()
-  );
+    sendResponse(
+      linkId.c_str(), 
+      HTTP_STATUSES(status).c_str(),
+      jsn.dump().c_str()
+    );
+  } catch (...) {
+    printf("[Server]:[ERROR]: while closing connection\n");
+  }
 }
 
 // Executed on core 1
@@ -38,30 +42,13 @@ void handle_request(const std::string& request) {
   const std::string linkId = getParam(1, ',', '\0', request);
   const std::string dataLen = getParam(2, ',', ':', request);
 
-  std::string httpLine = getParam(2, ',', '\n', request);
+  std::string httpLine = getParam(2, ',', '\r', request);
   httpLine.erase(0, dataLen.length() + 1);
 
+  try {
+    const std::string method = getParam(0, ' ', '\0', httpLine);
+    const std::string route = getParam(1, ' ', '\0', httpLine);
 
-  while (httpLine.find("\r") != std::string::npos) {
-    httpLine.erase(httpLine.find("\r"), 1);
-  }
-
-  const std::string method = getParam(0, ' ', '\0', httpLine);
-  const std::string route = getParam(1, ' ', '\0', httpLine);
-
-  bool isValidContentType = false;
-  const char* contentType = strstr(request.c_str(), "Content-Type");
-  if (contentType != NULL) {
-    const std::string sContentType = getParam(0, '\n', '\0', contentType);
-    isValidContentType = sContentType.find("application/json") != std::string::npos;
-  }
-
-  if (
-    is_valid_method_with_no_body(method) || (
-      is_valid_method_with_body(method) &&
-      isValidContentType
-    )
-  ) {
     printf(
       "[Server]: Incoming '%s' request on '%s' from client '%s'\n", 
       method.c_str(), 
@@ -69,46 +56,82 @@ void handle_request(const std::string& request) {
       linkId.c_str()
     );
 
+    bool isAuthorized = false;
+    const char* authorization = strstr(request.c_str(), "Authorization");
+    if (authorization != NULL) {
+      const std::string auth = getParam(0, '\r', '\0', authorization);
+      const std::string authType = getParam(1, ' ', '\0', auth);
+      const std::string token = getParam(2, ' ', '\0', auth);
+
+      if (authType == "Bearer" && !token.empty()) {
+        isAuthorized = verify_signature(token);
+      }      
+    }
+
+    if (!isAuthorized) {
+      close_connection(linkId, HTTP_STATUS::UNAUTHORIZED);
+      return;
+    }
+
+    bool isValidContentType = false;
+    const char* contentType = strstr(request.c_str(), "Content-Type");
+    if (contentType != NULL) {
+      const std::string sContentType = getParam(0, '\r', '\0', contentType);
+      isValidContentType = sContentType.find("application/json") != std::string::npos;
+    }
+
+    if (!is_valid_method_with_no_body(method) && !is_valid_method_with_body(method)) {
+      close_connection(linkId, HTTP_STATUS::METHOD_NOT_ALLOWED);
+      return;
+    }
+
+    if (is_valid_method_with_body(method) && !isValidContentType) {
+      close_connection(linkId, HTTP_STATUS::UNSUPPORTED_MEDIA_TYPE);
+      return;
+    }
+
     const char* _requestBody = strstr(request.c_str(), "{");
     if (
       is_valid_method_with_body(method) &&
       _requestBody == NULL
     ) {
       close_connection(linkId, HTTP_STATUS::BAD_REQUEST);
-    } else {
-      if (multicore_fifo_wready()) {
-        multicore_fifo_push_blocking((uintptr_t)linkId.c_str());
-        multicore_fifo_push_blocking((uintptr_t)method.c_str());
-        multicore_fifo_push_blocking((uintptr_t)route.c_str());
+      return;
+    }
 
-        if (is_valid_method_with_body(method)) {
-          multicore_fifo_push_blocking((uintptr_t)_requestBody);
-        }
+    if (multicore_fifo_wready()) {
+      multicore_fifo_push_blocking((uintptr_t)linkId.c_str());
+      multicore_fifo_push_blocking((uintptr_t)method.c_str());
+      multicore_fifo_push_blocking((uintptr_t)route.c_str());
+
+      if (is_valid_method_with_body(method)) {
+        multicore_fifo_push_blocking((uintptr_t)_requestBody);
       }
     }
-  } else {
-    if (is_valid_method_with_body(method)) {
-      close_connection(linkId, HTTP_STATUS::UNSUPPORTED_MEDIA_TYPE);
-    } else {
-      close_connection(linkId, HTTP_STATUS::METHOD_NOT_ALLOWED);
-    }
+  } catch (...) {
+    printf("[Server]:[ERROR]: while handling request\n");
+    close_connection(linkId, HTTP_STATUS::INTERNAL_SERVER_ERROR);
   }
 }
 
 
 // Executed on core 0
 void handle_get_request(const std::string& linkId, const std::string& route) {
-  printf("[Server]: GET REQUEST %s\n", 
-    route.c_str()
-  );
+  // TODO: Implement get requests
 
-  // TODO: Implement GET logic
+  if (route == "/status") {
+    json jsn = json::object();
+    jsn["message"] = "OK";
 
-  sendResponse(
-    linkId.c_str(), 
-    HTTP_STATUSES(HTTP_STATUS::OK).c_str(), 
-    "{ \"message\": \"Hello GET!\" }"
-  );
+    sendResponse(
+      linkId.c_str(), 
+      HTTP_STATUSES(HTTP_STATUS::OK).c_str(), 
+      jsn.dump().c_str()
+    );
+    return;
+  }
+
+  close_connection(linkId, HTTP_STATUS::NOT_FOUND);
 }
 
 // Executed on core 0
@@ -124,11 +147,7 @@ void handle_post_request(
 
     // TODO: Implement POST logic
 
-    sendResponse(
-      linkId.c_str(), 
-      HTTP_STATUSES(HTTP_STATUS::OK).c_str(), 
-      "{ \"message\": \"Hello POST!\" }"
-    );
+    close_connection(linkId, HTTP_STATUS::NOT_FOUND);
   } catch (json::parse_error &e) {
     printf("[Server]: Handler 'Parse Error': %s\n", e.what());
     error = true;
@@ -144,6 +163,10 @@ void handle_post_request(
   } catch (json::other_error &e) {
     printf("[Server]: Handler 'Other Error': %s\n", e.what());
     error = true;
+  } catch (...) {
+    printf("[Server]: Handler 'Unknown Error'\n");
+    close_connection(linkId, HTTP_STATUS::INTERNAL_SERVER_ERROR);
+    return;
   }
 
   if (error) {

@@ -6,23 +6,9 @@
 #include <cstring>
 #include <string>
 
-void __not_in_flash_func (core1_sio_irq)() {
-  while (multicore_fifo_rvalid()) {
-    uintptr_t* out = (uintptr_t(*))multicore_fifo_pop_blocking();
-    printf("CORE 1 %s\n", out);
-  }
-
-  multicore_fifo_clear_irq();
-}
-
 // Executed on core 1
 void serve_clients() {
-  mutex_enter_blocking(&m_esp);
   printf("[Server]: Serving clients\n");
-  multicore_fifo_clear_irq();
-  irq_set_exclusive_handler(SIO_IRQ_PROC1, core1_sio_irq);
-  irq_set_enabled(SIO_IRQ_PROC1, true);
-  mutex_exit(&m_esp);
 
   while(1) {
     if (uart_is_readable(UART_ID)) {
