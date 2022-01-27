@@ -2,6 +2,7 @@
 #include "pico/multicore.h"
 #include "hardware/uart.h"
 #include "hardware/rtc.h"
+#include "hardware/adc.h"
 #include "hardware/irq.h"
 #include "constants.cpp"
 #include "pico/stdlib.h"
@@ -18,14 +19,16 @@
 
 using json = nlohmann::json;
 
+bool alarm_triggered = false;
+
+#if SERVICE_TYPE == 1
+#include "services/Thermostat.cpp"
+#endif
+
+#include "utils/encryption.cpp"
 #include "esp/utils.cpp"
 #include "esp/main.cpp"
 #include "utils/hmac.cpp"
-#include "server/main.cpp"
-
-#ifdef IS_DEBUG_MODE
-#include "pico/bootrom.h"
-#endif
 
 void reboot_board() {
   printf("[MAIN]: Rebooting board\n");
@@ -39,8 +42,22 @@ void reboot_board() {
   while (1);
 }
 
+#include "server/main.cpp"
+
+#ifdef IS_DEBUG_MODE
+#include "pico/bootrom.h"
+#endif
+
+// TODO: Add switch to force summer/winter mode (In case of a faulty sensor)
+
+int64_t alarm_callback(alarm_id_t id, void *user_data) {
+  alarm_triggered = true;
+  return TRIGGER_INERVAL_MS * 1000;
+}
+
 int main() {
   stdio_usb_init();
+  adc_init();
   rtc_init();
 
   stdio_filter_driver(&stdio_usb);
@@ -59,10 +76,19 @@ int main() {
   gpio_set_dir(STATUS_LED_PIN, GPIO_OUT);
   gpio_put(STATUS_LED_PIN, 1);
 
-#ifdef IS_DEBUG_MODE
-  sleep_ms(4000);
-#else
+  initialize_uart();
+
   sleep_ms(500);
+
+  gpio_init(RESTORE_PIN);
+  gpio_set_dir(RESTORE_PIN, GPIO_IN);
+  if (gpio_get(RESTORE_PIN)) {
+    printf("[MAIN]: Restore button pressed\n");
+    sendATCommandOK("RESTORE", 2000);
+  }
+
+#ifdef IS_DEBUG_MODE
+  sleep_ms(3500);
 #endif
 
   gpio_put(STATUS_LED_PIN, 0);
@@ -70,13 +96,12 @@ int main() {
   printf("~~~~~Made by: 'github.com/RaresAil'~~~~~\n");
   printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n\n");
 
-  if (
-    !initialize_uart() || 
-    !initialize_esp()
-  ) {
+  if (!initialize_esp()) {
     reboot_board();
     return -1;
   }
+
+  service.trigger_data_update();
 
   if(!start_server()) {
     printf("[Server]: Failed to start server\n");
@@ -84,7 +109,12 @@ int main() {
     return -1;
   }
 
+  add_alarm_in_ms(TRIGGER_INERVAL_MS, alarm_callback, NULL, false);
   while(1) {
-    tight_loop_contents();
+    while(!alarm_triggered) {
+      tight_loop_contents();
+    }
+    alarm_triggered = false;
+    service.trigger_data_update();
   }
 }

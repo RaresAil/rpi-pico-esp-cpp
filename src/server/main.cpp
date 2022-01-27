@@ -5,13 +5,12 @@
 #include <stdio.h>
 #include <cstring>
 #include <string>
+#include <tuple>
 
-#include "constants.cpp"
-#include "utils.cpp"
+std::string IP = "";
+std::string MAC = "";
 
-#include "handler.cpp"
-#include "m-core.cpp"
-#include "serve.cpp"
+#include "mqtt/main.cpp"
 
 bool led_blink_timer(struct repeating_timer *t) {
   try {
@@ -100,14 +99,18 @@ bool start_server() {
       }
     }
 
-    const std::string ipAddress = getIp();
-    if (ipAddress == "0.0.0.0" || ipAddress.empty()) {
-      printf("[Server]: Failed to get IP address\n");
+    const std::tuple<std::string, std::string> ipMac = getIpMac();
+    IP = std::get<0>(ipMac);
+    MAC = std::get<1>(ipMac);
+
+    if (IP == "0.0.0.0" || IP.empty() || MAC.empty()) {
+      printf("[Server]: Failed to get IP/MAC address\n");
       return false;
     }
 
     printf("[Server]: Connected to WiFi\n");
-    printf("[Server]: IP Address: '%s'\n", ipAddress.c_str());
+    printf("[Server]: IP Address: '%s'\n", IP.c_str());
+    printf("[Server]: MAC Address: '%s'\n", MAC.c_str());
 
     printf("[Server]: Setting the UTC time to RTC\n");
     if (!setupUTCTime()) {
@@ -120,39 +123,14 @@ bool start_server() {
       return false;
     }
 
-    if (!sendATCommandOK("CIPMUX=1", 2000)) {
+    const bool result = connect_to_mqtt();
+    if (!result) {
+      printf("[Server]: Failed to connect to MQTT server\n");
+      sendATCommandOK("MQTTCLEAN=0", 250, true);
       return false;
     }
-
-    snprintf(sendBuffer, SENDBUFFERLEN, "CIPSERVER=1,%s", SOCKET_PORT);
-    if (!sendATCommandOK(sendBuffer, 2000)) {
-      return false;
-    }
-
-    printf("[Server]: Server running on port '%s'\n", SOCKET_PORT);
-
-    if (!sendATCommandOK("CIPSTO=5", 1000, true)) {
-      printf("[Server]: Failed to set client timeout\n");
-    } else {
-      printf("[Server]: Client timeout set to 5s\n");
-    }
-
-    const std::string one_month_signature = generate_signature(31 * 24 * 60 * 60 * (u_int64_t)1000);
-    const std::string b64_payload = getParam(0, '.', '\0', one_month_signature);
-    const std::string b64_signature = getParam(1, '.', '\0', one_month_signature);
-
-#ifdef IS_DEBUG_MODE
-    printf("\n~~~~~~~~~~~~~~~~~~~~~\n");
-    printf("Debug Signature: \n%s.\n%s\n", b64_payload.c_str(), b64_signature.c_str());
-    printf("~~~~~~~~~~~~~~~~~~~~~\n\n");
-#endif
 
     gpio_put(STATUS_LED_PIN, 1);
-
-    multicore_launch_core1(serve_clients);
-    irq_set_exclusive_handler(SIO_IRQ_PROC0, core0_sio_irq);
-    irq_set_enabled(SIO_IRQ_PROC0, true);
-
     mutex_exit(&m_esp);
     return true;
   } catch (...) {

@@ -7,10 +7,10 @@ int UART_IRQ = UART_ID == uart0 ? UART0_IRQ : UART1_IRQ;
 
 bool initialize_esp() {
   try {
-    clearATBuffer(1000);
+    clearATBuffer(4000);
 
-    if (sendATCommandOK("RST", 1000)) {
-      sendATCommand("", 1000, "ready", true);
+    if (sendATCommandOK("RST", 2000)) {
+      sendATCommand("", 2000, "ready", true);
 
       std::string sdkVersion = getSDKVersion();
       if (sdkVersion.empty()) {
