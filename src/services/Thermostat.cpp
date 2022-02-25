@@ -10,10 +10,10 @@
 #include <string>
 
 #define DEVICE_TYPE         "Thermostat"
-#define TRIGGER_INERVAL_MS  240000
+#define TRIGGER_INERVAL_MS  60000
 
-#define RELAY_GPIO_PIN    14
-#define LM35_GPIO_PIN     26
+#define RELAY_GPIO_PIN      14
+#define LM35_GPIO_PIN       26
 
 enum class COMMAND {
   SET,
@@ -44,23 +44,18 @@ class Thermostat {
     bool read_temperature() {
       try {
         // Select the external LM35 sensor
-        // TODO: Keep checking the wrong values
         adc_select_input(0);
 
-        const float conversion_factor = 3.3f / (1 << 12);
         uint16_t result = adc_read();
-        printf("[Thermostat]: Temp Raw: %f.\n", result);
+        printf("[Thermostat]: Temp Raw: %f\n", result);
 
-        const float voltage = result * conversion_factor;
-        printf("[Thermostat]: Temp Voltage: %f.\n", voltage);
+        const float voltage = (result / 65536.0) * 5000;
+        printf("[Thermostat]: Temp Voltage: %f\n", voltage);
 
-        const float temp = (27 - (voltage - 0.706)/0.001721) / 10;
-        this->temperature = std::ceil(temp * 10.0) / 10.0;
+        this->temperature = std::ceil(voltage * 10.0) / 10.0;
         printf("[Thermostat]: Temp C: %f.\n", this->temperature);
 
-        if (this->temperature > -56 && this->temperature < 151) {
-          return true;
-        }
+        return true;
       } catch (...) {
         printf("[Thermostat]:[ERROR]: Failed to read temperature.\n");
       }

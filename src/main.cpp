@@ -56,13 +56,10 @@ int64_t alarm_callback(alarm_id_t id, void *user_data) {
 }
 
 int main() {
+#ifdef IS_DEBUG_MODE
   stdio_usb_init();
-  adc_init();
-  rtc_init();
-
   stdio_filter_driver(&stdio_usb);
 
-#ifdef IS_DEBUG_MODE
   const uint BOOTSEL_BUTTON = 15;
   gpio_init(BOOTSEL_BUTTON);
   gpio_set_dir(BOOTSEL_BUTTON, GPIO_IN);
@@ -71,6 +68,9 @@ int main() {
     reset_usb_boot(0, 0);
   }
 #endif
+
+  adc_init();
+  rtc_init();
 
   gpio_init(STATUS_LED_PIN);
   gpio_set_dir(STATUS_LED_PIN, GPIO_OUT);
@@ -114,6 +114,7 @@ int main() {
     while(!alarm_triggered) {
       tight_loop_contents();
     }
+
     alarm_triggered = false;
     service.trigger_data_update();
   }

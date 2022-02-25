@@ -46,6 +46,8 @@ For ESP Touch, i am using the ExpressIf's mobile application
 Current done services:
 
 - Thermostat
+  - It requires and external LM35 sensor connected to VSys (5v)
+  - It checks every 1 minute the temperature
 
 To add a custom service, create a new file based on one already created,
 all of the services must have:
