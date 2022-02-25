@@ -29,7 +29,16 @@ void handle_mqtt_message(const json& data) {
 
       publishMQTTMessage(input.dump());
     } else if (type == TYPES(TYPE::DATA)) {
-      handle_command(data["data"], type, publishMQTTMessage);
+      #if SIGN_MQTT == 1
+        const std::string signedData = data["data"].get<std::string>();
+
+        if (verify_hmac(signedData)) {
+          const json jsonData = json::parse(get_data_from_hmac(signedData));
+          handle_command(jsonData["data"], type, publishMQTTMessage);
+        }
+      #else
+        handle_command(data["data"], type, publishMQTTMessage);
+      #endif
     } else {
       printf("[MQTT]:[ERROR]: Unknown type\n");
     }
@@ -73,7 +82,7 @@ void serve_broker() {
           ) {
             uint16_t dataLen = atoi(responseBuffer);
 
-            if (dataLen > 0 && sendATCommand("", 100, "", true, dataLen)) {
+            if (dataLen > 0 && sendATCommand("", 200, "", true, dataLen)) {
               const json mqttData = json::parse(responseBuffer);
               printf("[MQTT]-[C1]: Incoming data: (%s)\n", mqttData.dump().c_str());
               handle_mqtt_message(mqttData);

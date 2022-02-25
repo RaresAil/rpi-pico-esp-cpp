@@ -35,7 +35,7 @@ Features:
 - SmartConfig with ESP Touch and AirKiss
 - Auto reboot if the esp didn't connected to the mqtt server
 - RTC (Time in string format and in ms)
-- HMAC SHA256 authorization
+- HMAC SHA256 verification on packets
 - Error handler
 - MQTT & DataGram socket for IoT communication with a smart home server
 
