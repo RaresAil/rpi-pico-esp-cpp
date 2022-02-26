@@ -154,7 +154,10 @@ class Thermostat {
 Thermostat service = Thermostat();
 
 // Executed on core 1
-void handle_command(const json& command, const std::string& type, bool (*respond)(const std::string&)) {
+void handle_command(
+  const json& command, 
+  void (*respond)(const json&)
+) {
   try {
     if (command.is_null() || command.value("cmd", "") == "") {
       return;
@@ -186,19 +189,16 @@ void handle_command(const json& command, const std::string& type, bool (*respond
     
     const std::string cmd_id = command.value("cmd_id", "");
 
-    json response = {
-      {"type", type},
-      {"data", {
-        {"target_temperature", service.get_target_temperature()},
-        {"temperature", service.get_temperature()},
-        {"unit", service.get_unit_is_celsius()},
-        {"winter", service.get_winter_mode()},
-        {"heating", service.is_heating()},
-        {"cmd_id", cmd_id}
-      }}
+    const json response = {
+      {"target_temperature", service.get_target_temperature()},
+      {"temperature", service.get_temperature()},
+      {"unit", service.get_unit_is_celsius()},
+      {"winter", service.get_winter_mode()},
+      {"heating", service.is_heating()},
+      {"cmd_id", cmd_id}
     };
 
-    respond(response.dump());
+    respond(response);
   } catch (...) {
     printf("[Thermostat]:[ERROR]: while handling command\n");
   }

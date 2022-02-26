@@ -138,6 +138,14 @@ bool connect_to_mqtt() {
 
   json pair_j = json::object();
   pair_j["type"] = TYPES(TYPE::PAIR);
+
+  const u_int64_t input_exp = get_datetime_ms() + PACKET_EXPIRE_TIME_MS;
+  pair_j["exp"] = input_exp;
+
+  #if SIGN_MQTT == 1
+  pair_j["sign"] = generate_sign(TYPES(TYPE::PAIR) + std::to_string(input_exp));
+  #endif
+
   if (!publishMQTTMessage(pair_j.dump())) {
     printf("[MQTT]: Failed to publish pair message\n");
     return false;

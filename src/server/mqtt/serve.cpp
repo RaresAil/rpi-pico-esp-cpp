@@ -6,14 +6,48 @@
 #include <cstring>
 #include <string>
 
+void respond_to_mqtt(const json& data, const TYPE& type) {
+  json data_input = json::object();
+  data_input["data"] = data;
+  data_input["type"] = TYPES(type);
+
+  const u_int64_t input_exp = get_datetime_ms() + PACKET_EXPIRE_TIME_MS;
+  data_input["exp"] = input_exp;
+
+  #if SIGN_MQTT == 1
+  const std::string input_sign = generate_sign(TYPES(type) + std::to_string(input_exp));
+  data_input["sign"] = input_sign;
+  #endif
+
+  publishMQTTMessage(data_input.dump());
+}
+
+void respond_to_mqtt(const json& data) {
+  respond_to_mqtt(data, TYPE::DATA);
+}
+
 void handle_mqtt_message(const json& data) {
   try {
     const std::string type = data["type"].get<std::string>();
+    const u_int64_t exp = data["exp"].get<u_int64_t>();
+    const u_int64_t now = get_datetime_ms();
+  
+    if (exp < now || exp >= now + PACKET_MAX_EXPIRE_TIME_MS) {
+      printf("[MQTT]: Request expired\n");
+      return;
+    }
+
+    #if SIGN_MQTT == 1
+    if (!verify_sign(data["sign"].get<std::string>(), type + std::to_string(exp))) {
+      printf("[MQTT]: Invalid pair signature\n");
+      return;
+    }
+
+    printf("[MQTT]: Valid pair signature\n");
+    #endif
 
     if (type == TYPES(TYPE::PAIR)) {
       printf("[MQTT]: Paired successful\n");
-
-      json input = json::object();
 
       json data_input = json::object();
       data_input["hardware"] = HARDWARE_REVISION;
@@ -24,21 +58,9 @@ void handle_mqtt_message(const json& data) {
       data_input["model"] = MODEL;
       data_input["mac"] = MAC;
 
-      input["type"] = TYPES(TYPE::REGISTER);
-      input["data"] = data_input;
-
-      publishMQTTMessage(input.dump());
+      respond_to_mqtt(data_input, TYPE::REGISTER);
     } else if (type == TYPES(TYPE::DATA)) {
-      #if SIGN_MQTT == 1
-        const std::string signedData = data["data"].get<std::string>();
-
-        if (verify_hmac(signedData)) {
-          const json jsonData = json::parse(get_data_from_hmac(signedData));
-          handle_command(jsonData["data"], type, publishMQTTMessage);
-        }
-      #else
-        handle_command(data["data"], type, publishMQTTMessage);
-      #endif
+      handle_command(data["data"], respond_to_mqtt);
     } else {
       printf("[MQTT]:[ERROR]: Unknown type\n");
     }

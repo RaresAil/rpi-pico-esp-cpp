@@ -23,6 +23,8 @@
 #define MQTT_DATA_TOPIC_PREFIX    "iot-embedded/data"
 #define MQTT_STATUS_TOPIC_PREFIX  "iot-embedded/status"
 #define SIGN_MQTT                 1
+#define PACKET_MAX_EXPIRE_TIME_MS 5000
+#define PACKET_EXPIRE_TIME_MS     3000
 
 // Board constants, this should be unique for each board
 #define UUID              "9d5437d5-3303-4800-88cd-871ad1f08e01"
