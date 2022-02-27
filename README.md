@@ -29,13 +29,16 @@ External libraries:
 - https://github.com/nlohmann/json (For JSON parsing)
 - https://github.com/stbrumme/hash-library (For Hashing)
 - https://github.com/ReneNyffenegger/cpp-base64 (For Base64 encoding)
+- https://github.com/rweather/arduinolibs Crypto (For AES-256-CTR encryption)
 
 Features:
 
 - SmartConfig with ESP Touch and AirKiss
 - Auto reboot if the esp didn't connected to the mqtt server
 - RTC (Time in string format and in ms)
-- HMAC SHA256 verification on packets
+- HMAC SHA256 verification on packets (This or AES)
+- AES-256-CTR encryption for packets (This or HMAC)
+- AES-256-CTR encryption for datagram socket
 - Error handler
 - MQTT & DataGram socket for IoT communication with a smart home server
 

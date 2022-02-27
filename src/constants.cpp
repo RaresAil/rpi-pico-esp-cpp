@@ -26,10 +26,15 @@
 #define PACKET_MAX_EXPIRE_TIME_MS 5000
 #define PACKET_EXPIRE_TIME_MS     3000
 
+// Board secrets
+#define HMAC_SECRET       "secret"
+// 32 bytes long (44 chars in base64)
+// The IV is randomly generated
+#define AES256CTR_KEY     "RmrhgEiJlAQJ/MII+wQmN9SVFY7CZ0A6wsW/2txHqsk="
+
 // Board constants, this should be unique for each board
 #define UUID              "9d5437d5-3303-4800-88cd-871ad1f08e01"
 #define HOSTNAME          "rpi-pico-esp-template"
-#define HMAC_SECRET       "secret"
 #define FIRMWARE_VERSION  "0.0.1"
 #define HARDWARE_REVISION "0.1-rev0"
 #define MANUFACTURER      "Raspberry Pi Ltd"

@@ -21,6 +21,8 @@ using json = nlohmann::json;
 
 bool alarm_triggered = false;
 
+#include "utils/aes.cpp"
+
 #if SERVICE_TYPE == 1
 #include "services/Thermostat.cpp"
 #endif
