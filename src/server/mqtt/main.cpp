@@ -29,7 +29,7 @@ bool validate_datagram_response(const char* response) {
       return false;
     }
 
-    json j_data = json::parse(hex2ascii(decrypt(encryptedData)));
+    json j_data = json::parse(decrypt_256_aes_ctr(encryptedData));
     const std::string connHost = j_data["host"].get<std::string>();
     password = j_data["password"].get<std::string>();
     user = j_data["user"].get<std::string>();
@@ -136,17 +136,24 @@ bool connect_to_mqtt() {
 
   printf("[MQTT]: Subscribed to '%s/%s'\n", MQTT_DATA_TOPIC_PREFIX, UUID);
 
+
   json pair_j = json::object();
   pair_j["type"] = TYPES(TYPE::PAIR);
 
   const u_int64_t input_exp = get_datetime_ms() + PACKET_EXPIRE_TIME_MS;
   pair_j["exp"] = input_exp;
 
-  #if SIGN_MQTT == 1
+  #if BOARD_SECURITY == 1
   pair_j["sign"] = generate_sign(TYPES(TYPE::PAIR) + std::to_string(input_exp));
   #endif
 
-  if (!publishMQTTMessage(pair_j.dump())) {
+  #if BOARD_SECURITY == 2
+  const std::string pair_str = encrypt_256_aes_ctr(pair_j.dump());
+  #else
+  const std::string pair_str = pair_j.dump();
+  #endif
+
+  if (!publishMQTTMessage(pair_str)) {
     printf("[MQTT]: Failed to publish pair message\n");
     return false;
   }

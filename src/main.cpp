@@ -27,7 +27,7 @@ bool alarm_triggered = false;
 #include "services/Thermostat.cpp"
 #endif
 
-#include "utils/encryption.cpp"
+#include "utils/hex.cpp"
 #include "esp/utils.cpp"
 #include "esp/main.cpp"
 #include "utils/hmac.cpp"

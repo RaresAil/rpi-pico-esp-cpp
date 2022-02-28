@@ -14,12 +14,18 @@ void respond_to_mqtt(const json& data, const TYPE& type) {
   const u_int64_t input_exp = get_datetime_ms() + PACKET_EXPIRE_TIME_MS;
   data_input["exp"] = input_exp;
 
-  #if SIGN_MQTT == 1
+  #if BOARD_SECURITY == 1
   const std::string input_sign = generate_sign(TYPES(type) + std::to_string(input_exp));
   data_input["sign"] = input_sign;
   #endif
 
-  publishMQTTMessage(data_input.dump());
+  #if BOARD_SECURITY == 2
+  const std::string pair_str = encrypt_256_aes_ctr(data_input.dump());
+  #else
+  const std::string pair_str = data_input.dump();
+  #endif
+
+  publishMQTTMessage(pair_str);
 }
 
 void respond_to_mqtt(const json& data) {
@@ -37,7 +43,7 @@ void handle_mqtt_message(const json& data) {
       return;
     }
 
-    #if SIGN_MQTT == 1
+    #if BOARD_SECURITY == 1
     if (!verify_sign(data["sign"].get<std::string>(), type + std::to_string(exp))) {
       printf("[MQTT]: Invalid pair signature\n");
       return;
@@ -105,7 +111,12 @@ void serve_broker() {
             uint16_t dataLen = atoi(responseBuffer);
 
             if (dataLen > 0 && sendATCommand("", 200, "", true, dataLen)) {
+              #if BOARD_SECURITY == 2
+              const json mqttData = json::parse(decrypt_256_aes_ctr(responseBuffer));
+              #else
               const json mqttData = json::parse(responseBuffer);
+              #endif
+
               printf("[MQTT]-[C1]: Incoming data: (%s)\n", mqttData.dump().c_str());
               handle_mqtt_message(mqttData);
             }

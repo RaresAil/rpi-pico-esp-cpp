@@ -22,15 +22,16 @@
 // iot-embedded/status/UUID - Send data
 #define MQTT_DATA_TOPIC_PREFIX    "iot-embedded/data"
 #define MQTT_STATUS_TOPIC_PREFIX  "iot-embedded/status"
-#define SIGN_MQTT                 1
 #define PACKET_MAX_EXPIRE_TIME_MS 5000
 #define PACKET_EXPIRE_TIME_MS     3000
 
 // Board secrets
-#define HMAC_SECRET       "secret"
+// 0 -> None | 1 -> HMAC | 2 -> AES-256-CTR
+#define BOARD_SECURITY            2
 // 32 bytes long (44 chars in base64)
 // The IV is randomly generated
-#define AES256CTR_KEY     "RmrhgEiJlAQJ/MII+wQmN9SVFY7CZ0A6wsW/2txHqsk="
+// The same key is also used for HMAC
+#define ENCRYPTION_KEY             "RmrhgEiJlAQJ/MII+wQmN9SVFY7CZ0A6wsW/2txHqsk="
 
 // Board constants, this should be unique for each board
 #define UUID              "9d5437d5-3303-4800-88cd-871ad1f08e01"
