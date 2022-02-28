@@ -10,7 +10,7 @@
 #include <string>
 
 #define DEVICE_TYPE         "Thermostat"
-#define TRIGGER_INERVAL_MS  60000
+#define TRIGGER_INERVAL_MS  300000
 
 #define RELAY_GPIO_PIN      14
 #define LM35_GPIO_PIN       26
