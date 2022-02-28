@@ -1,8 +1,8 @@
+#include <functional>
+#include <algorithm>
+#include <climits>
 #include <vector>
 #include <random>
-#include <climits>
-#include <algorithm>
-#include <functional>
 
 #include "Crypto/BlockCipher.cpp"
 #include "Crypto/AESCommon.cpp"
@@ -14,9 +14,8 @@
 
 u_int8_t* randomBytes(u_int8_t size) {
   try {
-    static std::random_device r;
-    static std::default_random_engine randomEngine(r());
-    static std::uniform_int_distribution<int> uniformDist(CHAR_MIN, CHAR_MAX);
+    static std::default_random_engine randomEngine(get_datetime_ms());
+    static std::uniform_int_distribution<u_int8_t> uniformDist(CHAR_MIN, CHAR_MAX);
 
     std::vector<u_int8_t> data(size);
     std::generate(data.begin(), data.end(), [] () {
