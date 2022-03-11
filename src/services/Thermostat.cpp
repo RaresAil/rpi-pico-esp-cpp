@@ -38,12 +38,13 @@ std::string COMMANDS(const COMMAND& command) {
 class Thermostat {
   private:
     struct repeating_timer timer;
+    bool prev_heating = false;
 
     float target_temperature = 0;
     bool unit_is_celsius = true;
     bool winter_mode = false;
     float temperature = 0;
-    float humidity = 0;
+    int humidity = 0;
 
     uint32_t expect_pulse(bool state) {
       uint32_t count = 0;
@@ -117,10 +118,9 @@ class Thermostat {
           this->humidity = ((uint32_t)dht_data[0]) << 8 | dht_data[1];
           this->humidity *= 0.1;
 
-          this->temperature = std::ceil(this->temperature * 10.0) / 10.0;
-          this->humidity = std::ceil(this->humidity * 10.0) / 10.0;
+          this->temperature = ceilf(this->temperature * 10.0) / 10.0;
 
-          printf("[THERMOSTAT]: Success temperature: (%f) H: (%f).\n", this->temperature, this->humidity);
+          printf("[THERMOSTAT]: Success temperature: (%f) H: (%d).\n", this->temperature, this->humidity);
           mutex_exit(&m_read_temp);
           return true;
         } else {
@@ -201,14 +201,21 @@ class Thermostat {
     }
 
     bool is_heating() {
-      if (
-        winter_mode &&
-        temperature <= target_temperature + 1
-      ) {
-        return true;
+      if (!this->winter_mode) {
+        this->prev_heating = false;
+      } else {
+        if (!this->prev_heating) {
+          if (this->temperature < this->target_temperature) {
+            this->prev_heating = true;
+          }
+        } else {
+          if (this->temperature >= (this->target_temperature + 1)) {
+            this->prev_heating = false;
+          }
+        }
       }
 
-      return false;
+      return this->prev_heating;
     }
 
     bool trigger_data_update() {

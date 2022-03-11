@@ -51,6 +51,8 @@ void reboot_board() {
 #endif
 
 // TODO: Add switch to force summer/winter mode (In case of a faulty sensor)
+// TODO: Switch to allow offline mode
+// TODO: OLED Display and Buttons for manual control
 
 int64_t alarm_callback(alarm_id_t id, void *user_data) {
   alarm_triggered = true;
