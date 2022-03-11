@@ -1,61 +1,70 @@
-### ESP Model
+## Legacy (HTTP)
+
+For a http implementation, you can use the [http-template](https://github.com/RaresAil/rpi-pico-esp-cpp/tree/http-template) branch which is no longer maintained in favor
+of **MQTT**
+
+ESP & Firmware For HTTP:
+
+- ESP 01S (1MB - 8MBit)
+- AT NoOS 1.5.4 & 3.0.5 (1MB - 8MBit)
+
+## ESP Model
 
 Tested with:
 
-- **ESP 12F** (Best performance)
-- ESP 01S
+- ESP 12F (4MB - 32MBit)
 
 AT Firmware:
 
 - **AT-IDF 2.2.1.0 - 24 Dec 2021** (`wroom02-n-at`) (2MB - 16MBit) (Recommended)
-- AT NoOS 1.5.4 & 3.0.5 (1MB - 8MBit)
 
 To can use IDF 2.2.1.0 for 12F, i had to use `esp8266-wroom02-n-at` instead of `esp8266-wroom02-at`.
 
 The `esp8266-wroom02-at` uses UART1 and `esp8266-wroom02-n-at` uses UART0 (Same as NoOS version).
 
-### Structure
+## Structure
 
 External libraries:
 
 - https://github.com/nlohmann/json (For JSON parsing)
 - https://github.com/stbrumme/hash-library (For Hashing)
 - https://github.com/ReneNyffenegger/cpp-base64 (For Base64 encoding)
+- https://github.com/rweather/arduinolibs Crypto (For AES-256-CTR encryption)
 
 Features:
 
 - SmartConfig with ESP Touch and AirKiss
-- Auto reboot if the esp didn't started the http server
+- Auto reboot if the esp didn't connected to the mqtt server
 - RTC (Time in string format and in ms)
-- HMAC SHA256 authorization
+- HMAC SHA256 verification on packets (This or AES)
+- AES-256-CTR encryption for packets (This or HMAC)
+- AES-256-CTR encryption for datagram socket
 - Error handler
-- GET `/status` endpoint
+- MQTT & DataGram socket for IoT communication with a smart home server
 
 For ESP Touch, i am using the ExpressIf's mobile application
 
-The only available `content-type` for `requests` and `responses` is `application/json`.
+## Services
 
-Right now the project uses only POST and GET, to add a new method, you need to change the files:
+Current done services:
 
-- server/constants.cpp
-  - `enum class METHOD`
-  - `std::string METHODS`
-- server/utils.cpp
-  - `is_valid_method_with_no_body`
-  - `is_valid_method_with_body`
-- server/m-core.cpp
-  - `core0_sio_irq`
+- Thermostat
+  - It requires and external LM35 sensor connected to VSys (5v)
+  - It checks every 1 minute the temperature
 
-### Performance
+To add a custom service, create a new file based on one already created,
+all of the services must have:
 
-~~By testing, the fastest response is 500ms and the avg is 750ms~~
+```cpp
+// A type what will be received by the server to know what kind of device is this
+#define DEVICE_TYPE       "Type"
 
-After some more optimizations, the avg response times are:
 
-- For errors: 150 - 200 ms
-- GET Requests: 300 - 600 ms
-- POST Requests: 500 - 900 ms
-- If the ESP does not respond with the http request the timeout util connection close is 5 seconds
+// `handle_command` will be called automatically when the client received a message of type DATA
+// the command param it will be the `data` key.
+// e.g. { "type": "DATA", "data": {...} }
+void handle_command(const json& command, const std::string& type, bool (*respond)(const std::string&));
+```
 
 ### Hardware Configuration
 
@@ -67,10 +76,6 @@ After some more optimizations, the avg response times are:
 | TX                          | RX       |
 | 3.3v                        | 3.3v     |
 | CH_PD / EN / CHIP_EN        | 3.3v     |
-
-### Coming Soon (if requested)
-
-- MQTT implementation for IDF-AT Firmware
 
 ### Change Project Name
 

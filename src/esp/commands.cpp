@@ -8,28 +8,37 @@
 #include <cstring>
 #include <string>
 #include <time.h>
+#include <tuple>
 
-std::string getIp() {
+std::tuple<std::string, std::string> getIpMac() {
   try {
     if (!sendATCommandOK("CIFSR", 2000)) {
-      return "";
+      return std::make_tuple("", "");
     }
 
-    const char* buff = strstr(responseBuffer, "STAIP");
-    if (buff == NULL) {
-      return "";
+    std::string ip = "";
+    std::string mac = "";
+
+    const char* ipBuff = strstr(responseBuffer, "STAIP");
+    if (ipBuff != NULL) {
+      ip = getParam(1, '"', '\0', ipBuff);
     }
 
-    return getParam(1, '"', '\0', buff);
+    const char* macBuff = strstr(responseBuffer, "STAMAC");
+    if (macBuff != NULL) {
+      mac = getParam(1, '"', '\0', macBuff);;
+    }
+
+    return std::make_tuple(ip, mac);
   } catch (...) {
     printf("[Server]:[ERROR]: while getting IP\n");
-    return "";
+    return std::make_tuple("", "");
   }
 }
 
 std::string getSDKVersion() {
   try {
-    if (!sendATCommandOK("GMR", 1000)) {
+    if (!sendATCommandOK("GMR", 3000)) {
       return "";
     }
 
@@ -87,7 +96,12 @@ bool setupUTCTime() {
 
     sendATCommandOK("CIPSNTPTIME?", 2000);
     if (strstr(responseBuffer, "1970") == NULL) {
-      const std::string s_date = c_getParam(":", '\r');
+      std::string s_date = c_getParam(":", '\r');
+      std::size_t doubleSpace = s_date.find("  ");
+      while (doubleSpace != std::string::npos) {
+        s_date.replace(doubleSpace + 1, 1, "0");
+        doubleSpace = s_date.find("  ");
+      }
 
       if (!s_date.empty()) {
         printf("[Server]-[INFO]: UTC time: '%s'\n", s_date.c_str());
@@ -110,8 +124,12 @@ bool setupUTCTime() {
           printf("[Server]: Setting RTC time to %d-%d-%d %d:%d:%d\n", dt.year, dt.month, dt.day, dt.hour, dt.min, dt.sec);
           rtc_set_datetime(&dt);
           break;
+        } else {
+          printf("[Server]:[ERROR]: While parsing UTC time\n");
         }
       }
+    } else {
+      sleep_ms(4000);
     }
   } while (--retries);
 

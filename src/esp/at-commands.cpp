@@ -35,7 +35,9 @@ bool sendATCommand(
   int64_t allowTimeMs, 
   const char* successMsg, 
   const bool& surpressOutput = false,
-  const bool& isIPD = false
+  const uint16_t& readLen = 0,
+  const bool& surpressInput = false,
+  const bool& exitAtError = false
 ) {
   try {
     absolute_time_t start = get_absolute_time();
@@ -54,7 +56,10 @@ bool sendATCommand(
     while (absolute_time_diff_us(start, get_absolute_time()) < allowTimeMs) {
       if (runCommand && strlen(command) > 0) {
         uart_puts(UART_ID, sendBuffer); 
-        printf("[AT-Command]-[%s]: Sending Command\n", command);
+        
+        if (!surpressInput) {
+          printf("[AT-Command]-[%s]: Sending Command\n", command);
+        }
     
         runCommand = false;
         buffPtr = 0;
@@ -78,10 +83,11 @@ bool sendATCommand(
         return true;
       }
 
-      if (
-        isIPD &&
-        strstr(responseBuffer, "\r\n\r\n") != NULL
-      ) {
+      if (exitAtError && (strstr(responseBuffer, "ERROR") != NULL)) {
+        return false;
+      }
+
+      if (readLen > 0 && buffPtr == readLen) {
         return true;
       }
 
@@ -150,13 +156,21 @@ bool sendATCommand(
 
     return (buffPtr > 0) ? true : false;
   } catch (...) {
-    printf("[AT-Command]-[%s]: Exception\n", command);
+    if (!surpressOutput) {
+      printf("[AT-Command]-[%s]: Exception\n", command);
+    }
+
     return false;
   }
 }
 
-bool sendATCommandOK(const char* command, const int64_t allowTimeMs, const bool& surpressOutput = false) {
-  return sendATCommand(command, allowTimeMs, "OK", surpressOutput);
+bool sendATCommandOK(
+  const char* command, 
+  const int64_t allowTimeMs, 
+  const bool& surpressOutput = false,
+  const bool& exitAtError = false
+) {
+  return sendATCommand(command, allowTimeMs, "OK", surpressOutput, 0, false, exitAtError);
 }
 
 bool clearATBuffer(const int64_t allowTimeMs) {
@@ -234,33 +248,5 @@ std::string c_getParam(
   } catch (...) {
     printf("[Server]:[ERROR]: while getting c_param\n");
     return "";
-  }
-}
-
-void sendResponse(const char* id, const char* statusCode, const char* responseData) {
-  try {
-    char sendBuffer[SENDBUFFERLEN];
-    char data[SENDBUFFERLEN];
-
-    snprintf(
-      data, SENDBUFFERLEN, 
-      "HTTP/1.0 %s\r\n%s\r\n%s%s",
-      statusCode, 
-      "Access-Control-Allow-Origin: *\r\nHost: RPi-Pico",
-      "Content-type: application/json\r\n\r\n", 
-      responseData, 
-      "\r\n\0"
-    );
-
-    snprintf(sendBuffer, SENDBUFFERLEN, "CIPSENDEX=%s,%d", id, strlen(data));
-    sendATCommand(sendBuffer, 250, ">", true);
-
-    uart_puts(UART_ID, data);
-    sendATCommandOK("", 250, true);
-
-    snprintf(sendBuffer, SENDBUFFERLEN, "CIPCLOSE=%s", id);
-    sendATCommandOK(sendBuffer, 250, true);
-  } catch (...) {
-    printf("[HTTP-Server]: Error sending response\n");
   }
 }
