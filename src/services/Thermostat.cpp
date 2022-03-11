@@ -12,8 +12,12 @@
 #define DEVICE_TYPE         "Thermostat"
 #define TRIGGER_INERVAL_MS  300000
 
-#define RELAY_GPIO_PIN      14
-#define LM35_GPIO_PIN       26
+#define RELAY_GPIO_PIN      17
+#define DHT_22_GPIO_PIN     18
+#define PULL_TIME           55
+#define DTH_MAX_TIMINGS     1100
+
+static mutex_t m_read_temp;
 
 enum class COMMAND {
   SET,
@@ -31,7 +35,6 @@ std::string COMMANDS(const COMMAND& command) {
   }
 }
 
-
 class Thermostat {
   private:
     struct repeating_timer timer;
@@ -40,26 +43,94 @@ class Thermostat {
     bool unit_is_celsius = true;
     bool winter_mode = false;
     float temperature = 0;
+    float humidity = 0;
+
+    uint32_t expect_pulse(bool state) {
+      uint32_t count = 0;
+
+      while (gpio_get(DHT_22_GPIO_PIN) == state) {
+        if (count++ >= DTH_MAX_TIMINGS) {
+          return UINT32_MAX;
+        }
+      }
+
+      return count;
+    }
 
     bool read_temperature() {
+      mutex_enter_blocking(&m_read_temp);
       try {
-        // Select the external LM35 sensor
-        adc_select_input(0);
+        int dht_data[5] = { 0, 0, 0, 0, 0 };
 
-        uint16_t result = adc_read();
-        printf("[Thermostat]: Temp Raw: %f\n", result);
+        gpio_set_dir(DHT_22_GPIO_PIN, GPIO_IN);
+        sleep_ms(1);
 
-        const float voltage = (result / 65536.0) * 5000;
-        printf("[Thermostat]: Temp Voltage: %f\n", voltage);
+        gpio_set_dir(DHT_22_GPIO_PIN, GPIO_OUT);
+        gpio_put(DHT_22_GPIO_PIN, 0);
 
-        this->temperature = std::ceil(voltage * 10.0) / 10.0;
-        printf("[Thermostat]: Temp C: %f.\n", this->temperature);
+        sleep_us(1100);
+        uint32_t cycles[80];
 
-        return true;
+        gpio_set_dir(DHT_22_GPIO_PIN, GPIO_IN);
+        sleep_us(PULL_TIME);
+
+        if (this->expect_pulse(0) == UINT32_MAX) {
+          printf("[Thermostat]:[TIMEOUT]: Failed on low pulse.\n");
+          mutex_exit(&m_read_temp);
+          return false;
+        }
+
+        if (this->expect_pulse(1) == UINT32_MAX) {
+          printf("[Thermostat]:[TIMEOUT]: Failed on high pulse.\n");
+          mutex_exit(&m_read_temp);
+          return false;
+        }
+
+        for (int i = 0; i < 80; i += 2) {
+          cycles[i] = this->expect_pulse(0);
+          cycles[i + 1] = this->expect_pulse(1);
+        }
+
+        for (int i = 0; i < 40; ++i) {
+          uint32_t lowCycles = cycles[2 * i];
+          uint32_t highCycles = cycles[2 * i + 1];
+
+          if ((lowCycles == UINT32_MAX) || (highCycles == UINT32_MAX)) {
+            printf("[Thermostat]:[TIMEOUT]: Failed on check pulse.\n");
+            mutex_exit(&m_read_temp);
+            return false;
+          }
+
+          dht_data[i / 8] <<= 1;
+          if (highCycles > lowCycles) {
+            dht_data[i / 8] |= 1;
+          }
+        }
+
+        if (dht_data[4] == ((dht_data[0] + dht_data[1] + dht_data[2] + dht_data[3]) & 0xFF)) {
+          this->temperature = ((uint32_t)(dht_data[2] & 0x7F)) << 8 | dht_data[3];
+          this->temperature *= 0.1;
+          if (dht_data[2] & 0x80) {
+            this->temperature *= -1;
+          }
+
+          this->humidity = ((uint32_t)dht_data[0]) << 8 | dht_data[1];
+          this->humidity *= 0.1;
+
+          this->temperature = std::ceil(this->temperature * 10.0) / 10.0;
+          this->humidity = std::ceil(this->humidity * 10.0) / 10.0;
+
+          printf("[THERMOSTAT]: Success temperature: (%f) H: (%f).\n", this->temperature, this->humidity);
+          mutex_exit(&m_read_temp);
+          return true;
+        } else {
+          printf("[THERMOSTAT]: Failed to check checksum.\n");
+        }
       } catch (...) {
         printf("[Thermostat]:[ERROR]: Failed to read temperature.\n");
       }
 
+      mutex_exit(&m_read_temp);
       return false;
     }
 
@@ -76,12 +147,15 @@ class Thermostat {
 
   public:
     Thermostat() {
+      mutex_init(&m_read_temp);
       adc_set_temp_sensor_enabled(false);
-      adc_gpio_init(LM35_GPIO_PIN);
 
       gpio_init(RELAY_GPIO_PIN);
       gpio_set_dir(RELAY_GPIO_PIN, GPIO_OUT);
       gpio_put(RELAY_GPIO_PIN, 0);
+
+      gpio_init(DHT_22_GPIO_PIN);
+      gpio_set_dir(DHT_22_GPIO_PIN, GPIO_IN);
 
       // Executed on core 0
       add_repeating_timer_ms(1000, Thermostat::check, this, &this->timer);
@@ -114,6 +188,10 @@ class Thermostat {
       return this->temperature;
     }
 
+    float get_humidity() {
+      return this->humidity;
+    }
+
     bool get_unit_is_celsius() {
       return this->unit_is_celsius;
     }
@@ -140,7 +218,7 @@ class Thermostat {
           break;
         }
 
-        sleep_ms(1000);
+        sleep_ms(2000);
       } while (retries--);
 
       if (retries <= 0) {
@@ -194,6 +272,7 @@ void handle_command(
       {"temperature", service.get_temperature()},
       {"unit", service.get_unit_is_celsius()},
       {"winter", service.get_winter_mode()},
+      {"humidity", service.get_humidity()},
       {"heating", service.is_heating()},
       {"cmd_id", cmd_id}
     };
