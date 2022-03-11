@@ -2,7 +2,6 @@
 #include "pico/multicore.h"
 #include "hardware/uart.h"
 #include "hardware/rtc.h"
-#include "hardware/adc.h"
 #include "hardware/irq.h"
 #include "constants.cpp"
 #include "pico/stdlib.h"
@@ -73,7 +72,6 @@ int main() {
   }
 #endif
 
-  adc_init();
   rtc_init();
 
   gpio_init(STATUS_LED_PIN);

@@ -1,6 +1,5 @@
 #include "pico/multicore.h"
 #include "hardware/uart.h"
-#include "hardware/adc.h"
 #include "hardware/irq.h"
 #include "pico/stdlib.h"
 #include <math.h>
@@ -148,7 +147,6 @@ class Thermostat {
   public:
     Thermostat() {
       mutex_init(&m_read_temp);
-      adc_set_temp_sensor_enabled(false);
 
       gpio_init(RELAY_GPIO_PIN);
       gpio_set_dir(RELAY_GPIO_PIN, GPIO_OUT);
