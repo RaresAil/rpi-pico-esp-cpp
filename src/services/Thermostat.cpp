@@ -8,15 +8,18 @@
 #include <cstring>
 #include <string>
 
+#include "extras/Display.cpp"
+
 #define DEVICE_TYPE         "Thermostat"
 #define TRIGGER_INERVAL_MS  300000
 
-#define RELAY_GPIO_PIN      17
-#define DHT_22_GPIO_PIN     18
+#define RELAY_GPIO_PIN      14
+#define DHT_22_GPIO_PIN     13
 #define PULL_TIME           55
 #define DTH_MAX_TIMINGS     1100
 
 static mutex_t m_read_temp;
+static mutex_t m_heating;
 
 enum class COMMAND {
   SET,
@@ -39,11 +42,22 @@ class Thermostat {
     struct repeating_timer timer;
     bool prev_heating = false;
 
-    float target_temperature = 0;
+    double target_temperature = 0;
     bool unit_is_celsius = true;
     bool winter_mode = false;
-    float temperature = 0;
+    double temperature = 0;
     int humidity = 0;
+
+    void trigger_display_update() {
+      this->display.update_display(
+        std::to_string(this->temperature).substr(0, 4) + std::string(" C"),
+        new uint8_t[2] { 29, 6 },
+        "HEAT",
+        new uint8_t[2] { 0, 25 }
+      );
+    }
+
+    Display display;
 
     uint32_t expect_pulse(bool state) {
       uint32_t count = 0;
@@ -117,9 +131,10 @@ class Thermostat {
           this->humidity = ((uint32_t)dht_data[0]) << 8 | dht_data[1];
           this->humidity *= 0.1;
 
-          this->temperature = ceilf(this->temperature * 10.0) / 10.0;
+          this->temperature = std::ceil(this->temperature * 10.0) / 10.0;
 
           printf("[THERMOSTAT]: Success temperature: (%f) H: (%d).\n", this->temperature, this->humidity);
+          this->trigger_display_update();
           mutex_exit(&m_read_temp);
           return true;
         } else {
@@ -143,10 +158,10 @@ class Thermostat {
 
       return true;
     }
-
   public:
     Thermostat() {
       mutex_init(&m_read_temp);
+      mutex_init(&m_heating);
 
       gpio_init(RELAY_GPIO_PIN);
       gpio_set_dir(RELAY_GPIO_PIN, GPIO_OUT);
@@ -159,7 +174,11 @@ class Thermostat {
       add_repeating_timer_ms(1000, Thermostat::check, this, &this->timer);
     }
 
-    void change_target_temperature(float t) {
+    void setup_service() {
+      this->display.setup();
+    }
+
+    void change_target_temperature(double t) {
       this->target_temperature = t;
     }
 
@@ -178,15 +197,15 @@ class Thermostat {
     }
 
     // Getters
-    float get_target_temperature() {
+    double get_target_temperature() {
       return this->target_temperature;
     }
 
-    float get_temperature() {
+    double get_temperature() {
       return this->temperature;
     }
 
-    float get_humidity() {
+    int get_humidity() {
       return this->humidity;
     }
 
@@ -199,6 +218,7 @@ class Thermostat {
     }
 
     bool is_heating() {
+      mutex_enter_blocking(&m_heating);
       if (!this->winter_mode) {
         this->prev_heating = false;
       } else {
@@ -213,6 +233,7 @@ class Thermostat {
         }
       }
 
+      mutex_exit(&m_heating);
       return this->prev_heating;
     }
 
@@ -250,7 +271,7 @@ void handle_command(
     std::string cmd = command.at("cmd").get<std::string>();
 
     if (cmd == COMMANDS(COMMAND::SET)) {
-      float target_temperature = command.value(
+      double target_temperature = command.value(
         "target_temperature", 
         service.get_target_temperature()
       );

@@ -63,7 +63,7 @@ int main() {
   stdio_usb_init();
   stdio_filter_driver(&stdio_usb);
 
-  const uint BOOTSEL_BUTTON = 15;
+  const uint BOOTSEL_BUTTON = 16;
   gpio_init(BOOTSEL_BUTTON);
   gpio_set_dir(BOOTSEL_BUTTON, GPIO_IN);
   if (gpio_get(BOOTSEL_BUTTON)) {
@@ -97,6 +97,12 @@ int main() {
   printf("\n\n\n~~~~~~~~~~~~~~~RPico-BOOT~~~~~~~~~~~~~~~\n");
   printf("~~~~~Made by: 'github.com/RaresAil'~~~~~\n");
   printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n\n");
+
+  service.setup_service();
+  sleep_ms(50);
+
+  service.trigger_data_update();
+  return 0;
 
   if (!initialize_esp()) {
     reboot_board();

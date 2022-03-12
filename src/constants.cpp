@@ -7,7 +7,7 @@
 #define UART_RX_PIN       1
 
 #define STATUS_LED_PIN    PICO_DEFAULT_LED_PIN
-#define RESTORE_PIN       16
+#define RESTORE_PIN       15
 
 // Configuration of the server
 // The SOCKET_PORT is used for Datagram Socket
