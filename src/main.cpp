@@ -20,18 +20,18 @@ using json = nlohmann::json;
 
 bool alarm_triggered = false;
 
-
-#if SERVICE_TYPE == 1
-#include "services/Thermostat.cpp"
-#endif
-
 #include "utils/hex.cpp"
 #include "esp/utils.cpp"
 #include "utils/aes.cpp"
 #include "esp/main.cpp"
 #include "utils/hmac.cpp"
 
+#if SERVICE_TYPE == 1
+#include "services/Thermostat.cpp"
+#endif
+
 void reboot_board() {
+  service.update_newtwork("REBOOT");
   printf("[MAIN]: Rebooting board\n");
   sleep_ms(1000);
 
@@ -80,7 +80,10 @@ int main() {
 
   initialize_uart();
 
-  sleep_ms(500);
+  sleep_ms(450);
+
+  service.setup_service();
+  sleep_ms(50);
 
   gpio_init(RESTORE_PIN);
   gpio_set_dir(RESTORE_PIN, GPIO_IN);
@@ -98,18 +101,13 @@ int main() {
   printf("~~~~~Made by: 'github.com/RaresAil'~~~~~\n");
   printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n\n");
 
-  service.setup_service();
-  sleep_ms(50);
-
-  service.trigger_data_update();
-  return 0;
-
   if (!initialize_esp()) {
     reboot_board();
     return -1;
   }
 
   service.trigger_data_update();
+  service.ready();
 
   if(!start_server()) {
     printf("[Server]: Failed to start server\n");

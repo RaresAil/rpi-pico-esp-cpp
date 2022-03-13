@@ -46,6 +46,7 @@ bool start_server() {
 
     if (wifiState <= 0) {
       struct repeating_timer timer;
+      service.update_newtwork("PAIR");
       add_repeating_timer_ms(500, led_blink_timer, NULL, &timer);
 
       printf("[Server]: Starting SmartConfig\n");
@@ -81,6 +82,7 @@ bool start_server() {
         return false;
       }
 
+      service.update_newtwork("...");
       cancel_repeating_timer(&timer);
       gpio_put(STATUS_LED_PIN, 0);
 
@@ -93,6 +95,7 @@ bool start_server() {
         return false;
       }
     } else {
+      service.update_newtwork("...");
       printf("[Server]: Connecting to last WiFi configuration\n");
       if(!sendATCommandOK("CWJAP", 30 * 1000)) {
         return false;
@@ -107,6 +110,8 @@ bool start_server() {
       printf("[Server]: Failed to get IP/MAC address\n");
       return false;
     }
+
+    service.update_newtwork("ON");
 
     printf("[Server]: Connected to WiFi\n");
     printf("[Server]: IP Address: '%s'\n", IP.c_str());

@@ -16,6 +16,7 @@ using SSD1306 = pico_ssd1306::SSD1306;
 class Display {
   private:
     SSD1306 display;
+    std::string network = "";
 
   public:
     Display() {
@@ -30,6 +31,10 @@ class Display {
       gpio_pull_up(I2C_SCL_PIN);
     }
 
+    void update_newtwork(const std::string& network) {
+      this->network = network;
+    }
+
     void setup() {
       mutex_enter_blocking(&m_display);
 
@@ -40,7 +45,7 @@ class Display {
         drawText(&this->display, font_8x8, "Initializing", 15, 7);
         this->display.sendBuffer();
       } catch (...) {
-        printf("[Thermostat]:[ERROR]: Failed to setup display.\n");
+        printf("[Display]:[ERROR]: Failed to setup.\n");
       }
 
       mutex_exit(&m_display);
@@ -48,19 +53,28 @@ class Display {
 
     void update_display(
       const std::string &center_text, const uint8_t c_pos[2],
-      const std::string &left_b_text, const uint8_t lb_pos[2]
+      const std::string &left_b_text, const uint8_t lb_pos[2],
+      const bool &show_rb = false,
+      const unsigned char rb_icon[32] = {}, const uint8_t rb_pos[2] = {}
     ) {
       mutex_enter_blocking(&m_display);
 
       try {
+        printf("[Display]: Updating.\n");
         this->display.clear();
+
+        drawText(&this->display, font_8x8, this->network.c_str(), 0, 0);
 
         drawText(&this->display, font_12x16, center_text.c_str(), c_pos[0], c_pos[1]);
         drawText(&this->display, font_8x8, left_b_text.c_str(), lb_pos[0], lb_pos[1]);
 
+        if (show_rb) {
+          this->display.addBitmapImage(rb_pos[0], rb_pos[1], 16, 16, const_cast<unsigned char*>(rb_icon));
+        }
+
         this->display.sendBuffer();
       } catch (...) {
-        printf("[Thermostat]:[ERROR]: Failed to setup display.\n");
+        printf("[Display]:[ERROR]: Failed to update.\n");
       }
 
       mutex_exit(&m_display);

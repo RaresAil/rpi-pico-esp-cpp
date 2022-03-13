@@ -39,7 +39,13 @@ std::string COMMANDS(const COMMAND& command) {
 
 class Thermostat {
   private:
+    const unsigned char sun_icon[32] = {
+      0x01, 0x80, 0x01, 0x80, 0x20, 0x04, 0x10, 0x08, 0x03, 0xc0, 0x06, 0x60, 0x0c, 0x30, 0xc8, 0x13, 
+      0xc8, 0x13, 0x0c, 0x30, 0x06, 0x60, 0x03, 0xc0, 0x10, 0x08, 0x20, 0x04, 0x01, 0x80, 0x01, 0x80
+    };
+
     struct repeating_timer timer;
+    bool is_first_init = false;
     bool prev_heating = false;
 
     double target_temperature = 0;
@@ -48,12 +54,43 @@ class Thermostat {
     double temperature = 0;
     int humidity = 0;
 
-    void trigger_display_update() {
+    std::string c_s_temp = "";
+    std::string c_heat = "";
+    bool c_winter = false;
+    void trigger_display_update(const bool &heating) {
+      if (!is_first_init) {
+        return;
+      }
+
+      const std::string s_temp_f = std::to_string(this->temperature);
+      const std::string s_temp = 
+        getParam(0, '.', '\n', s_temp_f) + 
+        std::string(".") + 
+        getParam(1, '.', '\n', s_temp_f).substr(0, 1) + 
+        std::string(" C");
+
+      const std::string heat = heating  ? "HEAT" : "";
+
+      if (
+        this->c_s_temp == s_temp &&
+        this->c_heat == heat &&
+        this->c_winter == this->winter_mode
+      ) {
+        return;
+      }
+
+      this->c_s_temp = s_temp;
+      this->c_heat = heat;
+      this->c_winter = this->winter_mode;
+
       this->display.update_display(
-        std::to_string(this->temperature).substr(0, 4) + std::string(" C"),
-        new uint8_t[2] { 29, 6 },
-        "HEAT",
-        new uint8_t[2] { 0, 25 }
+        s_temp,
+        new uint8_t[2] { 29, 8 },
+        heat,
+        new uint8_t[2] { 0, 25 },
+        !this->winter_mode,
+        this->sun_icon,
+        new uint8_t[2] { 111, 15 }
       );
     }
 
@@ -133,12 +170,11 @@ class Thermostat {
 
           this->temperature = std::ceil(this->temperature * 10.0) / 10.0;
 
-          printf("[THERMOSTAT]: Success temperature: (%f) H: (%d).\n", this->temperature, this->humidity);
-          this->trigger_display_update();
+          printf("[Thermostat]: Success temperature: (%f) H: (%d).\n", this->temperature, this->humidity);
           mutex_exit(&m_read_temp);
           return true;
         } else {
-          printf("[THERMOSTAT]: Failed to check checksum.\n");
+          printf("[Thermostat]: Failed to check checksum.\n");
         }
       } catch (...) {
         printf("[Thermostat]:[ERROR]: Failed to read temperature.\n");
@@ -151,7 +187,9 @@ class Thermostat {
     static bool check(struct repeating_timer *rt) {
       try {
         Thermostat *instance = (Thermostat *)rt->user_data;
-        gpio_put(RELAY_GPIO_PIN, instance->is_heating());
+        const bool heating = instance->is_heating();
+        gpio_put(RELAY_GPIO_PIN, heating);
+        instance->trigger_display_update(heating);
       } catch (...) {
         printf("[Thermostat]:[ERROR]: While checking the heating mode\n");
       }
@@ -174,8 +212,17 @@ class Thermostat {
       add_repeating_timer_ms(1000, Thermostat::check, this, &this->timer);
     }
 
+    void update_newtwork(const std::string& network) {
+      this->display.update_newtwork(network);
+    }
+
     void setup_service() {
       this->display.setup();
+    }
+
+    void ready() {
+      printf("[Thermostat]: Ready.\n");
+      is_first_init = true;
     }
 
     void change_target_temperature(double t) {
