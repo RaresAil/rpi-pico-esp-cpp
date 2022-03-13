@@ -13,6 +13,9 @@
 #define DEVICE_TYPE         "Thermostat"
 #define TRIGGER_INERVAL_MS  300000
 
+#define F_WINTER_GPIO_PIN   11
+#define F_SUMMER_GPIO_PIN   12
+
 #define RELAY_GPIO_PIN      14
 #define DHT_22_GPIO_PIN     13
 #define PULL_TIME           55
@@ -48,6 +51,8 @@ class Thermostat {
     bool is_first_init = false;
     bool prev_heating = false;
 
+    uint8_t force_mode = 0;
+
     double target_temperature = 0;
     bool unit_is_celsius = true;
     bool winter_mode = false;
@@ -74,21 +79,21 @@ class Thermostat {
       if (
         this->c_s_temp == s_temp &&
         this->c_heat == heat &&
-        this->c_winter == this->winter_mode
+        this->c_winter == this->get_winter_mode()
       ) {
         return;
       }
 
       this->c_s_temp = s_temp;
       this->c_heat = heat;
-      this->c_winter = this->winter_mode;
+      this->c_winter = this->get_winter_mode();
 
       this->display.update_display(
         s_temp,
         new uint8_t[2] { 29, 8 },
         heat,
         new uint8_t[2] { 0, 25 },
-        !this->winter_mode,
+        !this->get_winter_mode(),
         this->sun_icon,
         new uint8_t[2] { 111, 15 }
       );
@@ -216,8 +221,22 @@ class Thermostat {
       this->display.update_newtwork(network);
     }
 
+    void center_message(const std::string& message) {
+      this->display.center_message(message);
+    }
+
     void setup_service() {
       this->display.setup();
+    }
+
+    void loop() {
+      if (gpio_get(F_WINTER_GPIO_PIN)) {
+        this->force_mode = 1;
+      } else if (gpio_get(F_SUMMER_GPIO_PIN)) {
+        this->force_mode = 2;
+      } else {
+        this->force_mode = 0;
+      }
     }
 
     void ready() {
@@ -260,13 +279,18 @@ class Thermostat {
       return this->unit_is_celsius;
     }
 
-    bool get_winter_mode() {
+    bool get_winter_mode(const bool &excludeForce = false) {
+      if (this->force_mode > 0 && !excludeForce) {
+        return this->force_mode == 1;
+      }
+
       return this->winter_mode;
     }
 
     bool is_heating() {
       mutex_enter_blocking(&m_heating);
-      if (!this->winter_mode) {
+
+      if (!this->get_winter_mode()) {
         this->prev_heating = false;
       } else {
         if (!this->prev_heating) {
@@ -328,7 +352,7 @@ void handle_command(
       );
       bool winter = command.value(
         "winter",
-        service.get_winter_mode()
+        service.get_winter_mode(true)
       );
     
       service.change_target_temperature(target_temperature);
@@ -344,7 +368,7 @@ void handle_command(
       {"target_temperature", service.get_target_temperature()},
       {"temperature", service.get_temperature()},
       {"unit", service.get_unit_is_celsius()},
-      {"winter", service.get_winter_mode()},
+      {"winter", service.get_winter_mode(true)},
       {"humidity", service.get_humidity()},
       {"heating", service.is_heating()},
       {"cmd_id", cmd_id}

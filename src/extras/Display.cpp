@@ -32,6 +32,7 @@ class Display {
     }
 
     void update_newtwork(const std::string& network) {
+      printf("[Display]: Updating network status: %s\n", network.c_str());
       this->network = network;
     }
 
@@ -41,11 +42,30 @@ class Display {
       try {
         this->display = SSD1306(I2C_ID, 0x3C, pico_ssd1306::Size::W128xH32);
         this->display.setOrientation(1);
-
-        drawText(&this->display, font_8x8, "Initializing", 15, 7);
-        this->display.sendBuffer();
       } catch (...) {
         printf("[Display]:[ERROR]: Failed to setup.\n");
+      }
+
+      mutex_exit(&m_display);
+    }
+
+    void center_message(const std::string &message) {
+      mutex_enter_blocking(&m_display);
+
+      try {
+        printf("[Display]: Updating.\n");
+        this->display.clear();
+
+        uint8_t size = ((128 - (message.size() * 8)) / 2)  - 1;
+        if (size < 0 || size > 127) {
+          size = 0;
+        }
+
+        drawText(&this->display, font_8x8, message.c_str(), size, 7);
+
+        this->display.sendBuffer();
+      } catch (...) {
+        printf("[Display]:[ERROR]: Failed to update.\n");
       }
 
       mutex_exit(&m_display);

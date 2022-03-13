@@ -31,7 +31,7 @@ bool alarm_triggered = false;
 #endif
 
 void reboot_board() {
-  service.update_newtwork("REBOOT");
+  service.center_message("Rebooting");
   printf("[MAIN]: Rebooting board\n");
   sleep_ms(1000);
 
@@ -49,9 +49,8 @@ void reboot_board() {
 #include "pico/bootrom.h"
 #endif
 
-// TODO: Add switch to force summer/winter mode (In case of a faulty sensor)
 // TODO: Switch to allow offline mode
-// TODO: OLED Display and Buttons for manual control
+// TODO: Buttons for manual control
 
 int64_t alarm_callback(alarm_id_t id, void *user_data) {
   alarm_triggered = true;
@@ -83,13 +82,17 @@ int main() {
   sleep_ms(450);
 
   service.setup_service();
+  service.center_message("Initializing");
   sleep_ms(50);
 
   gpio_init(RESTORE_PIN);
   gpio_set_dir(RESTORE_PIN, GPIO_IN);
   if (gpio_get(RESTORE_PIN)) {
+    service.center_message("Restoring");
+    sleep_ms(100);
     printf("[MAIN]: Restore button pressed\n");
     sendATCommandOK("RESTORE", 2000);
+    service.center_message("Initializing");
   }
 
 #ifdef IS_DEBUG_MODE
@@ -117,11 +120,10 @@ int main() {
 
   add_alarm_in_ms(TRIGGER_INERVAL_MS, alarm_callback, NULL, false);
   while(1) {
-    while(!alarm_triggered) {
-      tight_loop_contents();
+    service.loop();
+    if (alarm_triggered) {
+      alarm_triggered = false;
+      service.trigger_data_update();
     }
-
-    alarm_triggered = false;
-    service.trigger_data_update();
   }
 }
