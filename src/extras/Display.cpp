@@ -17,6 +17,7 @@ class Display {
   private:
     SSD1306 display;
     std::string network = "";
+    bool freeze = false;
 
   public:
     Display() {
@@ -29,6 +30,10 @@ class Display {
 
       gpio_pull_up(I2C_SDA_PIN);
       gpio_pull_up(I2C_SCL_PIN);
+    }
+
+    std::string get_network() {
+      return this->network;
     }
 
     void update_newtwork(const std::string& network) {
@@ -49,8 +54,9 @@ class Display {
       mutex_exit(&m_display);
     }
 
-    void center_message(const std::string &message) {
+    void center_message(const std::string &message, const bool &freeze = false) {
       mutex_enter_blocking(&m_display);
+      this->freeze = freeze;
 
       try {
         printf("[Display]: Updating.\n");
@@ -77,6 +83,10 @@ class Display {
       const bool &show_rb = false,
       const unsigned char rb_icon[32] = {}, const uint8_t rb_pos[2] = {}
     ) {
+      if (this->freeze) {
+        return;
+      }
+
       mutex_enter_blocking(&m_display);
 
       try {

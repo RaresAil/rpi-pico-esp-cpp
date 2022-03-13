@@ -31,7 +31,7 @@ bool alarm_triggered = false;
 #endif
 
 void reboot_board() {
-  service.center_message("Rebooting");
+  service.center_message("Rebooting", true);
   printf("[MAIN]: Rebooting board\n");
   sleep_ms(1000);
 
@@ -55,8 +55,6 @@ uint8_t starting_mode = 0;
 #ifdef IS_DEBUG_MODE
 #include "pico/bootrom.h"
 #endif
-
-// TODO: Buttons for manual control
 
 int64_t alarm_callback(alarm_id_t id, void *user_data) {
   alarm_triggered = true;
