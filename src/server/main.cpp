@@ -111,7 +111,7 @@ bool start_server() {
       return false;
     }
 
-    service.update_newtwork("ON");
+    service.update_newtwork("RTC");
 
     printf("[Server]: Connected to WiFi\n");
     printf("[Server]: IP Address: '%s'\n", IP.c_str());
@@ -128,12 +128,16 @@ bool start_server() {
       return false;
     }
 
+    service.update_newtwork("BIND");
+
     const bool result = connect_to_mqtt();
     if (!result) {
       printf("[Server]: Failed to connect to MQTT server\n");
       sendATCommandOK("MQTTCLEAN=0", 250, true);
       return false;
     }
+
+    service.update_newtwork("ON");
 
     gpio_put(STATUS_LED_PIN, 1);
     mutex_exit(&m_esp);
