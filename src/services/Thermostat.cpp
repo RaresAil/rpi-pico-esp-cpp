@@ -206,6 +206,11 @@ class Thermostat {
       mutex_init(&m_read_temp);
       mutex_init(&m_heating);
 
+      gpio_init(F_WINTER_GPIO_PIN);
+      gpio_set_dir(F_WINTER_GPIO_PIN, GPIO_IN);
+      gpio_init(F_SUMMER_GPIO_PIN);
+      gpio_set_dir(F_SUMMER_GPIO_PIN, GPIO_IN);
+
       gpio_init(RELAY_GPIO_PIN);
       gpio_set_dir(RELAY_GPIO_PIN, GPIO_OUT);
       gpio_put(RELAY_GPIO_PIN, 0);

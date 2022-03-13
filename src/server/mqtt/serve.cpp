@@ -97,7 +97,12 @@ void serve_broker() {
 
   while(1) {
     if (ping_timeout) {
-      reboot_board();
+      if (starting_mode == 2) {
+        cancel_alarm(alarm_id);
+        return;
+      } else {
+        reboot_board();
+      }
     }
 
     if (uart_is_readable(UART_ID)) {

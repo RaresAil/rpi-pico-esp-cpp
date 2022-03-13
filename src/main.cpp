@@ -43,13 +43,19 @@ void reboot_board() {
   while (1);
 }
 
+/* 
+ Mode 0: Normal mode
+ Mode 1: Offline mode
+ Mode 2: Allow Error mode
+*/
+uint8_t starting_mode = 0;
+
 #include "server/main.cpp"
 
 #ifdef IS_DEBUG_MODE
 #include "pico/bootrom.h"
 #endif
 
-// TODO: Switch to allow offline mode
 // TODO: Buttons for manual control
 
 int64_t alarm_callback(alarm_id_t id, void *user_data) {
@@ -77,22 +83,41 @@ int main() {
   gpio_set_dir(STATUS_LED_PIN, GPIO_OUT);
   gpio_put(STATUS_LED_PIN, 1);
 
+
+  gpio_init(OFFLINE_MODE_PIN);
+  gpio_set_dir(OFFLINE_MODE_PIN, GPIO_IN);
+  gpio_init(ALLOW_ERROR_PIN);
+  gpio_set_dir(ALLOW_ERROR_PIN, GPIO_IN);
+
   initialize_uart();
 
   sleep_ms(450);
 
+  std::string init_message = "Initializing";
+
   service.setup_service();
-  service.center_message("Initializing");
+
+  if (gpio_get(OFFLINE_MODE_PIN)) {
+    printf("[MAIN]: Offline mode\n");
+    init_message = "Init Offline";
+    starting_mode = 1;
+  } else if (gpio_get(ALLOW_ERROR_PIN)) {
+    printf("[MAIN]: Allow Error mode\n");
+    init_message = "Init Permissive";
+    starting_mode = 2;
+  }
+
+  service.center_message(init_message);
   sleep_ms(50);
 
   gpio_init(RESTORE_PIN);
   gpio_set_dir(RESTORE_PIN, GPIO_IN);
-  if (gpio_get(RESTORE_PIN)) {
+  if (gpio_get(RESTORE_PIN) && starting_mode != 1) {
     service.center_message("Restoring");
     sleep_ms(100);
     printf("[MAIN]: Restore button pressed\n");
     sendATCommandOK("RESTORE", 2000);
-    service.center_message("Initializing");
+    service.center_message(init_message);
   }
 
 #ifdef IS_DEBUG_MODE
@@ -104,18 +129,28 @@ int main() {
   printf("~~~~~Made by: 'github.com/RaresAil'~~~~~\n");
   printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n\n");
 
-  if (!initialize_esp()) {
-    reboot_board();
-    return -1;
+  bool esp_reboot = false;
+
+  if (starting_mode != 1 && !initialize_esp()) {
+    esp_reboot = true;
+
+    if (starting_mode != 2) {
+      reboot_board();
+      return -1;
+    }
   }
 
   service.trigger_data_update();
   service.ready();
 
-  if(!start_server()) {
+  if(starting_mode != 1 && !esp_reboot && !start_server()) {
     printf("[Server]: Failed to start server\n");
-    reboot_board();
-    return -1;
+    service.update_newtwork("");
+
+    if (starting_mode != 2) {
+      reboot_board();
+      return -1;
+    }
   }
 
   add_alarm_in_ms(TRIGGER_INERVAL_MS, alarm_callback, NULL, false);
