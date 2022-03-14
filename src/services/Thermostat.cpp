@@ -274,6 +274,8 @@ class Thermostat {
           this->target_timeout = 5;
           this->show_target_temp = true;
           this->trigger_display_update(false);
+
+          sleep_ms(50);
         }
       } else if (!gpio_get(PLUS_TEMP_GPIO_PIN) && gpio_get(MINUS_TEMP_GPIO_PIN)) {
         if (!button_pressed) {
@@ -282,6 +284,8 @@ class Thermostat {
           this->target_timeout = 5;
           this->show_target_temp = true;
           this->trigger_display_update(false);
+
+          sleep_ms(50);
         }
       } else {
         button_pressed = false;
