@@ -16,6 +16,12 @@
 #include "nlohmann/json.hpp"
 #endif
 
+enum class START_MODE {
+  ONLINE,
+  OFFLINE,
+  PERMISSIVE,
+};
+
 using json = nlohmann::json;
 
 bool alarm_triggered = false;
@@ -43,12 +49,7 @@ void reboot_board() {
   while (1);
 }
 
-/* 
- Mode 0: Normal mode
- Mode 1: Offline mode
- Mode 2: Allow Error mode
-*/
-uint8_t starting_mode = 0;
+START_MODE starting_mode = START_MODE::ONLINE;
 
 #include "server/main.cpp"
 
@@ -98,11 +99,11 @@ int main() {
   if (gpio_get(OFFLINE_MODE_PIN)) {
     printf("[MAIN]: Offline mode\n");
     init_message = "Init Offline";
-    starting_mode = 1;
+    starting_mode = START_MODE::OFFLINE;
   } else if (gpio_get(ALLOW_ERROR_PIN)) {
     printf("[MAIN]: Allow Error mode\n");
     init_message = "Init Permissive";
-    starting_mode = 2;
+    starting_mode = START_MODE::PERMISSIVE;
   }
 
   service.center_message(init_message);
@@ -110,9 +111,17 @@ int main() {
 
   gpio_init(RESTORE_PIN);
   gpio_set_dir(RESTORE_PIN, GPIO_IN);
-  if (gpio_get(RESTORE_PIN) && starting_mode != 1) {
-    service.center_message("Restoring");
-    sleep_ms(100);
+  if (gpio_get(RESTORE_PIN) && starting_mode != START_MODE::OFFLINE) {
+    int8_t counter = 3;
+    while (counter > 0) {
+      service.center_message(std::string("Restoring in ") + std::to_string(counter));
+      sleep_ms(1000);
+      counter--;
+    }
+
+
+    service.center_message("Restoring...");
+
     printf("[MAIN]: Restore button pressed\n");
     sendATCommandOK("RESTORE", 2000);
     service.center_message(init_message);
@@ -127,12 +136,12 @@ int main() {
   printf("~~~~~Made by: 'github.com/RaresAil'~~~~~\n");
   printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n\n");
 
-  bool esp_reboot = false;
+  bool esp_failed = false;
 
-  if (starting_mode != 1 && !initialize_esp()) {
-    esp_reboot = true;
+  if (starting_mode != START_MODE::OFFLINE && !initialize_esp()) {
+    esp_failed = true;
 
-    if (starting_mode != 2) {
+    if (starting_mode != START_MODE::PERMISSIVE) {
       reboot_board();
       return -1;
     }
@@ -141,11 +150,11 @@ int main() {
   service.trigger_data_update();
   service.ready();
 
-  if(starting_mode != 1 && !esp_reboot && !start_server()) {
+  if(starting_mode != START_MODE::OFFLINE && !esp_failed && !start_server()) {
     printf("[Server]: Failed to start server\n");
     service.update_newtwork("");
 
-    if (starting_mode != 2) {
+    if (starting_mode != START_MODE::PERMISSIVE) {
       reboot_board();
       return -1;
     }

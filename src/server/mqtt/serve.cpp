@@ -97,7 +97,7 @@ void serve_broker() {
 
   while(1) {
     if (ping_timeout) {
-      if (starting_mode == 2) {
+      if (starting_mode == START_MODE::PERMISSIVE) {
         cancel_alarm(alarm_id);
         return;
       } else {
