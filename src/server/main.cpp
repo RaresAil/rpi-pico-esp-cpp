@@ -43,8 +43,9 @@ bool start_server() {
     printf("[Server]: Hostname set to %s\n", HOSTNAME);
 
     const int wifiState = getWifiState();
+    printf("[Server]: Network State: %d\n", wifiState);
 
-    if (wifiState <= 0) {
+    if (wifiState <= 0 || wifiState == 4) {
       struct repeating_timer timer;
       service.update_newtwork("PAIR");
       add_repeating_timer_ms(500, led_blink_timer, NULL, &timer);
