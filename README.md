@@ -30,6 +30,7 @@ External libraries:
 - https://github.com/stbrumme/hash-library (For Hashing)
 - https://github.com/ReneNyffenegger/cpp-base64 (For Base64 encoding)
 - https://github.com/rweather/arduinolibs Crypto (For AES-256-CTR encryption)
+- https://github.com/Harbys/pico-ssd1306 SSD1306 (For OLED Display)
 
 Features:
 

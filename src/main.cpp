@@ -16,14 +16,15 @@
 #include "nlohmann/json.hpp"
 #endif
 
+enum class START_MODE {
+  ONLINE,
+  OFFLINE,
+  PERMISSIVE,
+};
+
 using json = nlohmann::json;
 
 bool alarm_triggered = false;
-
-
-#if SERVICE_TYPE == 1
-#include "services/Thermostat.cpp"
-#endif
 
 #include "utils/hex.cpp"
 #include "esp/utils.cpp"
@@ -31,7 +32,12 @@ bool alarm_triggered = false;
 #include "esp/main.cpp"
 #include "utils/hmac.cpp"
 
+#if SERVICE_TYPE == 1
+#include "services/Thermostat.cpp"
+#endif
+
 void reboot_board() {
+  service.center_message("Rebooting", true);
   printf("[MAIN]: Rebooting board\n");
   sleep_ms(1000);
 
@@ -43,15 +49,13 @@ void reboot_board() {
   while (1);
 }
 
+START_MODE starting_mode = START_MODE::ONLINE;
+
 #include "server/main.cpp"
 
 #ifdef IS_DEBUG_MODE
 #include "pico/bootrom.h"
 #endif
-
-// TODO: Add switch to force summer/winter mode (In case of a faulty sensor)
-// TODO: Switch to allow offline mode
-// TODO: OLED Display and Buttons for manual control
 
 int64_t alarm_callback(alarm_id_t id, void *user_data) {
   alarm_triggered = true;
@@ -63,7 +67,7 @@ int main() {
   stdio_usb_init();
   stdio_filter_driver(&stdio_usb);
 
-  const uint BOOTSEL_BUTTON = 15;
+  const uint BOOTSEL_BUTTON = 16;
   gpio_init(BOOTSEL_BUTTON);
   gpio_set_dir(BOOTSEL_BUTTON, GPIO_IN);
   if (gpio_get(BOOTSEL_BUTTON)) {
@@ -78,15 +82,49 @@ int main() {
   gpio_set_dir(STATUS_LED_PIN, GPIO_OUT);
   gpio_put(STATUS_LED_PIN, 1);
 
+
+  gpio_init(OFFLINE_MODE_PIN);
+  gpio_set_dir(OFFLINE_MODE_PIN, GPIO_IN);
+  gpio_init(ALLOW_ERROR_PIN);
+  gpio_set_dir(ALLOW_ERROR_PIN, GPIO_IN);
+
   initialize_uart();
 
-  sleep_ms(500);
+  sleep_ms(450);
+
+  std::string init_message = "Initializing";
+
+  service.setup_service();
+
+  if (gpio_get(OFFLINE_MODE_PIN)) {
+    printf("[MAIN]: Offline mode\n");
+    init_message = "Init Offline";
+    starting_mode = START_MODE::OFFLINE;
+  } else if (gpio_get(ALLOW_ERROR_PIN)) {
+    printf("[MAIN]: Allow Error mode\n");
+    init_message = "Init Permissive";
+    starting_mode = START_MODE::PERMISSIVE;
+  }
+
+  service.center_message(init_message);
+  sleep_ms(50);
 
   gpio_init(RESTORE_PIN);
   gpio_set_dir(RESTORE_PIN, GPIO_IN);
-  if (gpio_get(RESTORE_PIN)) {
+  if (gpio_get(RESTORE_PIN) && starting_mode != START_MODE::OFFLINE) {
+    int8_t counter = 3;
+    while (counter > 0) {
+      service.center_message(std::string("Restoring in ") + std::to_string(counter));
+      sleep_ms(1000);
+      counter--;
+    }
+
+
+    service.center_message("Restoring...");
+
     printf("[MAIN]: Restore button pressed\n");
     sendATCommandOK("RESTORE", 2000);
+    service.center_message(init_message);
   }
 
 #ifdef IS_DEBUG_MODE
@@ -98,26 +136,36 @@ int main() {
   printf("~~~~~Made by: 'github.com/RaresAil'~~~~~\n");
   printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n\n");
 
-  if (!initialize_esp()) {
-    reboot_board();
-    return -1;
+  bool esp_failed = false;
+
+  if (starting_mode != START_MODE::OFFLINE && !initialize_esp()) {
+    esp_failed = true;
+
+    if (starting_mode != START_MODE::PERMISSIVE) {
+      reboot_board();
+      return -1;
+    }
   }
 
   service.trigger_data_update();
+  service.ready();
 
-  if(!start_server()) {
+  if(starting_mode != START_MODE::OFFLINE && !esp_failed && !start_server()) {
     printf("[Server]: Failed to start server\n");
-    reboot_board();
-    return -1;
+    service.update_newtwork("");
+
+    if (starting_mode != START_MODE::PERMISSIVE) {
+      reboot_board();
+      return -1;
+    }
   }
 
   add_alarm_in_ms(TRIGGER_INERVAL_MS, alarm_callback, NULL, false);
   while(1) {
-    while(!alarm_triggered) {
-      tight_loop_contents();
+    service.loop();
+    if (alarm_triggered) {
+      alarm_triggered = false;
+      service.trigger_data_update();
     }
-
-    alarm_triggered = false;
-    service.trigger_data_update();
   }
 }

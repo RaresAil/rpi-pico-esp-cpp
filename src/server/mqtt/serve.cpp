@@ -97,7 +97,12 @@ void serve_broker() {
 
   while(1) {
     if (ping_timeout) {
-      reboot_board();
+      if (starting_mode == START_MODE::PERMISSIVE) {
+        cancel_alarm(alarm_id);
+        return;
+      } else {
+        reboot_board();
+      }
     }
 
     if (uart_is_readable(UART_ID)) {
@@ -122,9 +127,11 @@ void serve_broker() {
             }
           } else {
             if (strstr(responseBuffer, "DISCONNECTED") != NULL) {
+              service.update_newtwork("DISCONNECTED");
               printf("[MQTT]:[ERROR]: Disconnected from broker\n");
               alarm_id = add_alarm_in_ms(30 * 1000, reboot_alarm, NULL, true);
             } else if (strstr(responseBuffer, "CONNECTED") != NULL) {
+              service.update_newtwork("ON");
               printf("[MQTT]: Reconnected to MQTT broker\n");
               cancel_alarm(alarm_id);
             }

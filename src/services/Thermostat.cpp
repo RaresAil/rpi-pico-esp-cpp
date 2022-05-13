@@ -8,15 +8,24 @@
 #include <cstring>
 #include <string>
 
+#include "extras/Display.cpp"
+
 #define DEVICE_TYPE         "Thermostat"
 #define TRIGGER_INERVAL_MS  300000
 
-#define RELAY_GPIO_PIN      17
-#define DHT_22_GPIO_PIN     18
+#define F_WINTER_GPIO_PIN   11
+#define F_SUMMER_GPIO_PIN   12
+#define PLUS_TEMP_GPIO_PIN  8
+#define MINUS_TEMP_GPIO_PIN 7
+
+#define RELAY_GPIO_PIN      14
+#define DHT_22_GPIO_PIN     13
 #define PULL_TIME           55
 #define DTH_MAX_TIMINGS     1100
 
 static mutex_t m_read_temp;
+static mutex_t m_heating;
+static mutex_t m_t_display;
 
 enum class COMMAND {
   SET,
@@ -36,14 +45,75 @@ std::string COMMANDS(const COMMAND& command) {
 
 class Thermostat {
   private:
+    const unsigned char sun_icon[32] = {
+      0x01, 0x80, 0x01, 0x80, 0x20, 0x04, 0x10, 0x08, 0x03, 0xc0, 0x06, 0x60, 0x0c, 0x30, 0xc8, 0x13, 
+      0xc8, 0x13, 0x0c, 0x30, 0x06, 0x60, 0x03, 0xc0, 0x10, 0x08, 0x20, 0x04, 0x01, 0x80, 0x01, 0x80
+    };
+
     struct repeating_timer timer;
+    bool is_first_init = false;
     bool prev_heating = false;
 
-    float target_temperature = 0;
+    bool button_pressed = false;
+
+    uint8_t force_mode = 0;
+
+    double target_temperature = 10;
     bool unit_is_celsius = true;
     bool winter_mode = false;
-    float temperature = 0;
+    double temperature = 0;
     int humidity = 0;
+
+    std::string c_network = "";
+    std::string c_s_temp = "";
+    std::string c_heat = "";
+    bool c_winter = false;
+    void trigger_display_update(const bool &heating) {
+      if (!is_first_init) {
+        return;
+      }
+
+      mutex_enter_blocking(&m_t_display);
+
+      const std::string s_temp_f = std::to_string(
+        this->show_target_temp ? this->target_temperature : this->temperature
+      );
+      const std::string s_temp = 
+        getParam(0, '.', '\n', s_temp_f) + 
+        std::string(".") + 
+        getParam(1, '.', '\n', s_temp_f).substr(0, 1) + 
+        std::string(" C");
+
+      const std::string heat = this->show_target_temp ? "Target Temp" : (heating  ? "HEAT" : "");
+
+      if (
+        this->c_network == this->display.get_network() &&
+        this->c_s_temp == s_temp &&
+        this->c_heat == heat &&
+        this->c_winter == this->get_winter_mode()
+      ) {
+        mutex_exit(&m_t_display);
+        return;
+      }
+
+      this->c_network = this->display.get_network();
+      this->c_s_temp = s_temp;
+      this->c_heat = heat;
+      this->c_winter = this->get_winter_mode();
+
+      this->display.update_display(
+        s_temp,
+        new uint8_t[2] { 29, 8 },
+        heat,
+        new uint8_t[2] { 0, 25 },
+        this->show_target_temp ? false : !this->c_winter,
+        this->sun_icon,
+        new uint8_t[2] { 111, 15 }
+      );
+      mutex_exit(&m_t_display);
+    }
+
+    Display display;
 
     uint32_t expect_pulse(bool state) {
       uint32_t count = 0;
@@ -117,13 +187,13 @@ class Thermostat {
           this->humidity = ((uint32_t)dht_data[0]) << 8 | dht_data[1];
           this->humidity *= 0.1;
 
-          this->temperature = ceilf(this->temperature * 10.0) / 10.0;
+          this->temperature = std::ceil(this->temperature * 10.0) / 10.0;
 
-          printf("[THERMOSTAT]: Success temperature: (%f) H: (%d).\n", this->temperature, this->humidity);
+          printf("[Thermostat]: Success temperature: (%f) H: (%d).\n", this->temperature, this->humidity);
           mutex_exit(&m_read_temp);
           return true;
         } else {
-          printf("[THERMOSTAT]: Failed to check checksum.\n");
+          printf("[Thermostat]: Failed to check checksum.\n");
         }
       } catch (...) {
         printf("[Thermostat]:[ERROR]: Failed to read temperature.\n");
@@ -136,17 +206,42 @@ class Thermostat {
     static bool check(struct repeating_timer *rt) {
       try {
         Thermostat *instance = (Thermostat *)rt->user_data;
-        gpio_put(RELAY_GPIO_PIN, instance->is_heating());
+
+        if (instance->show_target_temp) {
+          if (instance->target_timeout <= 0) {
+            instance->show_target_temp = false;
+          } else {
+            instance->target_timeout--;
+          }
+        }
+
+        const bool heating = instance->is_heating();
+        gpio_put(RELAY_GPIO_PIN, heating);
+        instance->trigger_display_update(heating);
       } catch (...) {
         printf("[Thermostat]:[ERROR]: While checking the heating mode\n");
       }
 
       return true;
     }
-
   public:
+    int target_timeout = 5;
+    bool show_target_temp = false;
+
     Thermostat() {
       mutex_init(&m_read_temp);
+      mutex_init(&m_heating);
+      mutex_init(&m_t_display);
+
+      gpio_init(F_WINTER_GPIO_PIN);
+      gpio_set_dir(F_WINTER_GPIO_PIN, GPIO_IN);
+      gpio_init(F_SUMMER_GPIO_PIN);
+      gpio_set_dir(F_SUMMER_GPIO_PIN, GPIO_IN);
+
+      gpio_init(PLUS_TEMP_GPIO_PIN);
+      gpio_set_dir(PLUS_TEMP_GPIO_PIN, GPIO_IN);
+      gpio_init(MINUS_TEMP_GPIO_PIN);
+      gpio_set_dir(MINUS_TEMP_GPIO_PIN, GPIO_IN);
 
       gpio_init(RELAY_GPIO_PIN);
       gpio_set_dir(RELAY_GPIO_PIN, GPIO_OUT);
@@ -159,7 +254,65 @@ class Thermostat {
       add_repeating_timer_ms(1000, Thermostat::check, this, &this->timer);
     }
 
-    void change_target_temperature(float t) {
+    void update_newtwork(const std::string& network) {
+      this->display.update_newtwork(network);
+    }
+
+    void center_message(const std::string& message, const bool &freeze = false) {
+      this->display.center_message(message, freeze);
+    }
+
+    void setup_service() {
+      this->display.setup();
+    }
+
+    void loop() {
+      if (gpio_get(PLUS_TEMP_GPIO_PIN) && !gpio_get(MINUS_TEMP_GPIO_PIN)) {
+        if (!button_pressed) {
+          button_pressed = true;
+          this->change_target_temperature(this->target_temperature + 0.5);
+          this->target_timeout = 5;
+          this->show_target_temp = true;
+          this->trigger_display_update(false);
+
+          sleep_ms(50);
+        }
+      } else if (!gpio_get(PLUS_TEMP_GPIO_PIN) && gpio_get(MINUS_TEMP_GPIO_PIN)) {
+        if (!button_pressed) {
+          button_pressed = true;
+          this->change_target_temperature(this->target_temperature - 0.5);
+          this->target_timeout = 5;
+          this->show_target_temp = true;
+          this->trigger_display_update(false);
+
+          sleep_ms(50);
+        }
+      } else {
+        button_pressed = false;
+      }
+
+
+      if (gpio_get(F_WINTER_GPIO_PIN)) {
+        this->force_mode = 1;
+      } else if (gpio_get(F_SUMMER_GPIO_PIN)) {
+        this->force_mode = 2;
+      } else {
+        this->force_mode = 0;
+      }
+    }
+
+    void ready() {
+      printf("[Thermostat]: Ready.\n");
+      is_first_init = true;
+    }
+
+    void change_target_temperature(double t) {
+      if (t < 10) {
+        t = 10;
+      } else if (t > 38) {
+        t = 38;
+      }
+
       this->target_temperature = t;
     }
 
@@ -178,15 +331,15 @@ class Thermostat {
     }
 
     // Getters
-    float get_target_temperature() {
+    double get_target_temperature() {
       return this->target_temperature;
     }
 
-    float get_temperature() {
+    double get_temperature() {
       return this->temperature;
     }
 
-    float get_humidity() {
+    int get_humidity() {
       return this->humidity;
     }
 
@@ -194,12 +347,18 @@ class Thermostat {
       return this->unit_is_celsius;
     }
 
-    bool get_winter_mode() {
+    bool get_winter_mode(const bool &excludeForce = false) {
+      if (this->force_mode > 0 && !excludeForce) {
+        return this->force_mode == 1;
+      }
+
       return this->winter_mode;
     }
 
     bool is_heating() {
-      if (!this->winter_mode) {
+      mutex_enter_blocking(&m_heating);
+
+      if (!this->get_winter_mode()) {
         this->prev_heating = false;
       } else {
         if (!this->prev_heating) {
@@ -213,6 +372,7 @@ class Thermostat {
         }
       }
 
+      mutex_exit(&m_heating);
       return this->prev_heating;
     }
 
@@ -250,7 +410,7 @@ void handle_command(
     std::string cmd = command.at("cmd").get<std::string>();
 
     if (cmd == COMMANDS(COMMAND::SET)) {
-      float target_temperature = command.value(
+      double target_temperature = command.value(
         "target_temperature", 
         service.get_target_temperature()
       );
@@ -260,7 +420,7 @@ void handle_command(
       );
       bool winter = command.value(
         "winter",
-        service.get_winter_mode()
+        service.get_winter_mode(true)
       );
     
       service.change_target_temperature(target_temperature);
@@ -276,7 +436,7 @@ void handle_command(
       {"target_temperature", service.get_target_temperature()},
       {"temperature", service.get_temperature()},
       {"unit", service.get_unit_is_celsius()},
-      {"winter", service.get_winter_mode()},
+      {"winter", service.get_winter_mode(true)},
       {"humidity", service.get_humidity()},
       {"heating", service.is_heating()},
       {"cmd_id", cmd_id}

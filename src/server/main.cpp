@@ -43,9 +43,11 @@ bool start_server() {
     printf("[Server]: Hostname set to %s\n", HOSTNAME);
 
     const int wifiState = getWifiState();
+    printf("[Server]: Network State: %d\n", wifiState);
 
-    if (wifiState <= 0) {
+    if (wifiState <= 0 || wifiState == 4) {
       struct repeating_timer timer;
+      service.update_newtwork("PAIR");
       add_repeating_timer_ms(500, led_blink_timer, NULL, &timer);
 
       printf("[Server]: Starting SmartConfig\n");
@@ -81,6 +83,7 @@ bool start_server() {
         return false;
       }
 
+      service.update_newtwork("...");
       cancel_repeating_timer(&timer);
       gpio_put(STATUS_LED_PIN, 0);
 
@@ -93,6 +96,7 @@ bool start_server() {
         return false;
       }
     } else {
+      service.update_newtwork("...");
       printf("[Server]: Connecting to last WiFi configuration\n");
       if(!sendATCommandOK("CWJAP", 30 * 1000)) {
         return false;
@@ -107,6 +111,8 @@ bool start_server() {
       printf("[Server]: Failed to get IP/MAC address\n");
       return false;
     }
+
+    service.update_newtwork("RTC");
 
     printf("[Server]: Connected to WiFi\n");
     printf("[Server]: IP Address: '%s'\n", IP.c_str());
@@ -123,12 +129,16 @@ bool start_server() {
       return false;
     }
 
+    service.update_newtwork("BIND");
+
     const bool result = connect_to_mqtt();
     if (!result) {
       printf("[Server]: Failed to connect to MQTT server\n");
       sendATCommandOK("MQTTCLEAN=0", 250, true);
       return false;
     }
+
+    service.update_newtwork("ON");
 
     gpio_put(STATUS_LED_PIN, 1);
     mutex_exit(&m_esp);
