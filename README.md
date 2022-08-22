@@ -1,3 +1,5 @@
+This repo will be archived due the new RPI Pico W model
+
 ## Legacy (HTTP)
 
 For a http implementation, you can use the [http-template](https://github.com/RaresAil/rpi-pico-esp-cpp/tree/http-template) branch which is no longer maintained in favor
